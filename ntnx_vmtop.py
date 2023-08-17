@@ -18,14 +18,13 @@ parser.add_argument("--user",required=False,default="admin",help="Prism username
 parser.add_argument("--password",required=True,help="Prism password")
 args=parser.parse_args()
 
-vip=args.vip
-username=args.user
-password=args.password
-vms_to_list=args.count
-
-v1vipURL="https://"+vip+":9440/PrismGateway/services/rest/v1/vms/"
-
 def main():
+    vip=args.vip
+    username=args.user
+    password=args.password
+    vms_to_list=args.count
+    v1vipURL="https://"+vip+":9440/PrismGateway/services/rest/v1/vms/"
+    check_prism_accessible(vip)
     while True:
         requests.packages.urllib3.disable_warnings()
         # Time the API request response time
@@ -59,6 +58,17 @@ def main():
             if (count>vms_to_list):
                 break    
         time.sleep(10)
+
+def check_prism_accessible(vip):
+    requests.packages.urllib3.disable_warnings()
+    url="http://"+vip
+    try:
+        page = requests.get(url,verify=False,timeout=5)
+        print(page.status_code)
+    except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError):
+        print("Error URL is unreachable")
+        exit(1)
+
 
 if __name__ == "__main__":
     main()
