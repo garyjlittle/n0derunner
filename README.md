@@ -1,5 +1,7 @@
 # n0derunner
 Tools and Stuff from n0derunner blog
+* [ntnx_vmtop](#ntnx_vmtop.py)
+* [ntnx_iostat](#ntnx_iostat.sh)
 
 #### ntnx_vmtop.py
 `ntnx_vmtop.py` - A `top` like tool showing top CPU consumers on a Nutanix cluster. Written in Python3.
