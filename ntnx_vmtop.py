@@ -39,7 +39,7 @@ def main():
         os.system('clear')
         #Print header and API response time
         print(f"API response time {api_resp:3.2f}s with {str(num_results):4} entries")
-        print(f'{"vmname":>20} {"GB":>5} {"VCPU":>5} {"IOPS":>7} {"CPU%":>5} {"State":>5}')
+        print(f'{"vmname":>30} {"GB":>5} {"VCPU":>5} {"IOPS":>7} {"CPU%":>5} {"State":>5}')
         
         vmlist=sorted(res, key=lambda f: int(f['stats']["hypervisor_cpu_usage_ppm"]),reverse=True)
         count=1
@@ -53,7 +53,7 @@ def main():
                 vm_mem_gb=int((int(vm["memoryCapacityInBytes"])/1024**3))
                 vm_iops=vm["stats"]["controller_num_iops"]
                 vm_cpu_pct=((int(vm["stats"]["hypervisor_cpu_usage_ppm"])/1000000)*100)
-                print(f'{vm_name:>20.20} {vm_mem_gb:>5} {vm_vcpu:>5} {vm_iops:>7} {vm_cpu_pct:>5.2f} {vm_powerstate:>5} ')
+                print(f'{vm_name:>30.30} {vm_mem_gb:>5} {vm_vcpu:>5} {vm_iops:>7} {vm_cpu_pct:>5.2f} {vm_powerstate:>5} ')
                 count=count+1
             if (count>vms_to_list):
                 break    
