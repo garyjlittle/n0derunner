@@ -27,19 +27,25 @@ result=response.json()
 entities=result["entities"]
 registry = CollectorRegistry()
 
-g = Gauge('vm_avg_io_latency', 'VM IO Latency', registry=registry,labelnames=['vmname'])
 
 extra_info = Info('thisjob', 'Information about this batchjob run', registry=registry)
 extra_info.info({'instance': "fake name"})
 
+g = Gauge('per_vm_stats', 'VM stat', registry=registry,labelnames=['vmname','statname'])
+
+#Do the per VM stats
 for entity in entities:
-    print(entity["vmName"],entity["stats"]["controller_avg_io_latency_usecs"])
-    g.labels(entity["vmName"]).set(entity["stats"]["controller_avg_io_latency_usecs"])
+    vmname=entity["vmName"]
+    print(vmname)
+    for stat_name in entity["stats"]:
+         stat_value=entity["stats"][stat_name]
+         print(stat_name,stat_value)
+         g.labels(vmname,stat_name).set(stat_value)
     pprint.pprint(g)
-    print("Set a gauge")
     #Use grouping_key=prometheus_client.instance_ip_grouping_key() to set the instance key as the IP address
     #of the host where this python process is running.  Else we can set the dictionary to whatever we wamt
 
     #push_to_gateway('localhost:9091', job="thisjob", registry=registry,grouping_key=prometheus_client.instance_ip_grouping_key())
-    push_to_gateway('localhost:9091', job="thisjob", registry=registry,grouping_key={'instance': '10.24.24.69',"bogus":"true"})
+    #push_to_gateway('localhost:9091', job="thisjob", registry=registry,grouping_key={'instance': vip,"bogus":"true"})
+    push_to_gateway('localhost:9091', job="thisjob", registry=registry,grouping_key={'instance': vip})
 
