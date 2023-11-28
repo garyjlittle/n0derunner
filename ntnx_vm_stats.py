@@ -22,7 +22,7 @@ def main():
     password=args.password
     process_stats(vip,username,password)
 
-    
+
 
 def process_stats(vip,username,password):
     #Gauges etc. must be instantiated before starting the http server
