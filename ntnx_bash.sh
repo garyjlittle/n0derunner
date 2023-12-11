@@ -1,25 +1,20 @@
 #!/usr/bin/env bash
 
-#
-# refresh time is 20s average so - probably not much point in doing 1 second sleeps
-#
-
 # IP here is the cluster VIP
-VIP="10.56.68.100"
-username="admin"
-password="Nutanix/4u$"
-container_list="testctr1"
+VIP=""
+username=""
+password=""
+container_list=""
 
 function main {
+	printf "Content-Type: text/plain\n\n"
         for container in $container_list ; do
             CTR_UUID=$(get_uuid_for_container $container)
             READ_IOPS=$(get_metric $CTR_UUID "controller_num_read_iops")
             WRITE_IOPS=$(get_metric $CTR_UUID "controller_num_write_iops")
-            #echo "cluster_read_iops $READ_IOPS" | curl --data-binary @- http://localhost:9091/metrics/job/clusterID/instance/$container/label/fred
-            echo "cluster_read_iops $READ_IOPS" 
-            #echo "cluster_write_iops $WRITE_IOPS" | curl --data-binary @- http://localhost:9091/metrics/job/clusterID/instance/$container
-            echo "cluster_write_iops $WRITE_IOPS" 
-            done
+            echo "ntnx_bash{metric=\"cluster_read_iops\"} $READ_IOPS" 
+            echo "ntnx_bash{metric=\"cluster_write_iops\"} $WRITE_IOPS" 
+        done
 }
 
 function get_metric {
