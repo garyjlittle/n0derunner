@@ -14,8 +14,8 @@ sys.stdout.reconfigure(line_buffering=True)
 parser=argparse.ArgumentParser()
 parser.add_argument("-v","--vip",required=True,help="Name of IP of cluster VIP")
 parser.add_argument("-c","--count",required=False,type=int,default=25,help="Number of vm entries to report")
-parser.add_argument("--user",required=False,default="admin",help="Prism username")
-parser.add_argument("--password",required=True,help="Prism password")
+parser.add_argument("-u","--user",required=False,default="admin",help="Prism username")
+parser.add_argument("-p","--password",required=True,help="Prism password")
 args=parser.parse_args()
 
 def main():
@@ -25,6 +25,7 @@ def main():
     vms_to_list=args.count
     v1vipURL="https://"+vip+":9440/PrismGateway/services/rest/v1/vms/"
     check_prism_accessible(vip)
+    #exit()
     while True:
         requests.packages.urllib3.disable_warnings()
         # Time the API request response time
@@ -66,6 +67,23 @@ def main():
         time.sleep(10)
 
 def check_prism_accessible(vip):
+    #Check name resolution
+    url="http://"+vip
+
+    status = None
+    message = ''
+    try:
+        resp = requests.head('http://' + vip)
+        status = str(resp.status_code)
+    except:
+        if ("[Errno 11001] getaddrinfo failed" in str(vip) or     # Windows
+            "[Errno -2] Name or service not known" in str(vip) or # Linux
+            "[Errno 8] nodename nor servname " in str(vip)):      # OS X
+            message = 'DNSLookupError'
+        else:
+            raise
+    print("URL OK")
+    return url, status, message
     requests.packages.urllib3.disable_warnings()
     url="http://"+vip
     try:
