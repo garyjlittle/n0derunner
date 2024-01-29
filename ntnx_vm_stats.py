@@ -32,24 +32,41 @@ def process_stats(vip,username,password):
     #Gauges etc. must be instantiated before starting the http server
     #they can be updata at any time afterwards...
     prometheus_client.instance_ip_grouping_key()
-    g = Gauge('nutanix_v1_api', 'VM stat',labelnames=['vmname','statname'])
+    gVM = Gauge('v1_stat_vm', 'VM stat',labelnames=['vmname','statname'])
+    gHOST = Gauge('v1_stat_host', 'VM stat',labelnames=['hostname','statname'])
+    gCTR = Gauge('v1_stat_container', 'VM stat',labelnames=['container','statname'])
+
     # Need to start the "prometheus" http server after the Gauges are instantiated
     start_http_server(8000)
 
     requests.packages.urllib3.disable_warnings()
-    v1vipURL="https://"+vip+":9440/PrismGateway/services/rest/v1/vms/"
+    v1_stat_VM_URL="https://"+vip+":9440/PrismGateway/services/rest/v1/vms/"
+    v1_stat_HOST_URL="https://"+vip+":9440/PrismGateway/services/rest/v1/hosts/"
+    v1_stat_CTR_URL="https://"+vip+":9440/PrismGateway/services/rest/v1/containers/"
+
+
     while(True):
         try:
-            response=requests.get(v1vipURL, auth=HTTPBasicAuth(username,password),verify=False)
-            response.raise_for_status()
+            vm_response=requests.get(v1_stat_VM_URL, auth=HTTPBasicAuth(username,password),verify=False)
+            vm_response.raise_for_status()
+            host_response=requests.get(v1_stat_HOST_URL, auth=HTTPBasicAuth(username,password),verify=False)
+            host_response.raise_for_status()
+            ctr_response=requests.get(v1_stat_CTR_URL, auth=HTTPBasicAuth(username,password),verify=False)
+            ctr_response.raise_for_status()            
         except requests.exceptions.HTTPError as err:
             raise SystemExit(err)
 
-        result=response.json()
-        entities=result["entities"]
+        vm_result=vm_response.json()
+        vm_entities=vm_result["entities"]
+
+        host_result=host_response.json()
+        host_entities=host_result["entities"]
+
+        ctr_result=ctr_response.json()
+        ctr_entities=ctr_result["entities"]
 
         #Do the per VM stats
-        for entity in entities:
+        for entity in vm_entities:
             vmname=entity["vmName"]
             print(vmname)
 
@@ -57,13 +74,39 @@ def process_stats(vip,username,password):
                 stat_value=entity["stats"][stat_name]
                 print(vmname,stat_name,stat_value)
                 #g.labels(vmname,stat_name).set(stat_value)
-                gid=g.labels(vmname,stat_name)
+                gid=gVM.labels(vmname,stat_name)
                 gid.set(stat_value)
             #Summary(job="vmstats", registry=registry,grouping_key={'instance': vip})
             #push_to_gateway('localhost:9091', job="vmstats", registry=registry,grouping_key={'instance': vip})
-        print("Sleep Start")
+                
+        #Do the per Host stats
+        for entity in host_entities:
+            #pprint.pprint(entity)
+            #exit()
+            hostname=entity["name"]
+            print("hostname=",hostname)
+
+            for stat_name in entity["stats"]:
+                stat_value=entity["stats"][stat_name]
+                print(hostname,stat_name,stat_value)
+                #g.labels(vmname,stat_name).set(stat_value)
+                gid=gHOST.labels(hostname,stat_name)
+                gid.set(stat_value)
+
+        #Do the per Container stats
+        for entity in ctr_entities:
+            #pprint.pprint(entity)
+            #exit()
+            ctrname=entity["name"]
+            print("container=",ctrname)
+
+            for stat_name in entity["stats"]:
+                stat_value=entity["stats"][stat_name]
+                print(ctrname,stat_name,stat_value)
+                #g.labels(vmname,stat_name).set(stat_value)
+                gid=gCTR.labels(ctrname,stat_name)
+                gid.set(stat_value)
         time.sleep(1)
-        print("Sleep End")
 
 
 
