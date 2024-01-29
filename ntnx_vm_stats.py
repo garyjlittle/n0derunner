@@ -20,8 +20,12 @@ def main():
     vip=args.vip
     username=args.username
     password=args.password
+    if not (vip and username and password):
+        print("Need a vip, username and password")
+        exit(1)
+    
+    check_prism_accessible(vip)
     process_stats(vip,username,password)
-
 
 
 def process_stats(vip,username,password):
@@ -29,6 +33,7 @@ def process_stats(vip,username,password):
     #they can be updata at any time afterwards...
     prometheus_client.instance_ip_grouping_key()
     g = Gauge('nutanix_v1_api', 'VM stat',labelnames=['vmname','statname'])
+    # Need to start the "prometheus" http server after the Gauges are instantiated
     start_http_server(8000)
 
     requests.packages.urllib3.disable_warnings()
@@ -57,6 +62,20 @@ def process_stats(vip,username,password):
             #Summary(job="vmstats", registry=registry,grouping_key={'instance': vip})
             #push_to_gateway('localhost:9091', job="vmstats", registry=registry,grouping_key={'instance': vip})
         time.sleep(5)
+
+
+def check_prism_accessible(vip):
+    #Check name resolution and connectivity to Prism.   
+    requests.packages.urllib3.disable_warnings()
+    url="http://"+vip
+    try:
+        page = requests.get(url,verify=False,timeout=5)
+        #print(page.status_code)
+    except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError):
+        print("Error URL is unreachable")
+        exit(1)
+
+
 
 if __name__ == '__main__':
     main()
