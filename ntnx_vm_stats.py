@@ -61,20 +61,38 @@ def process_stats(vip,username,password):
                 gid.set(stat_value)
             #Summary(job="vmstats", registry=registry,grouping_key={'instance': vip})
             #push_to_gateway('localhost:9091', job="vmstats", registry=registry,grouping_key={'instance': vip})
-        time.sleep(5)
+        print("Sleep Start")
+        time.sleep(1)
+        print("Sleep End")
+
 
 
 def check_prism_accessible(vip):
-    #Check name resolution and connectivity to Prism.   
+    #Check name resolution
+    url="http://"+vip
+
+    status = None
+    message = ''
+    try:
+        resp = requests.head('http://' + vip)
+        status = str(resp.status_code)
+    except:
+        if ("[Errno 11001] getaddrinfo failed" in str(vip) or     # Windows
+            "[Errno -2] Name or service not known" in str(vip) or # Linux
+            "[Errno 8] nodename nor servname " in str(vip)):      # OS X
+            message = 'DNSLookupError'
+        else:
+            raise
+    print("URL OK")
+    return url, status, message
     requests.packages.urllib3.disable_warnings()
     url="http://"+vip
     try:
         page = requests.get(url,verify=False,timeout=5)
-        #print(page.status_code)
+        print(page.status_code)
     except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError):
         print("Error URL is unreachable")
         exit(1)
-
 
 
 if __name__ == '__main__':
