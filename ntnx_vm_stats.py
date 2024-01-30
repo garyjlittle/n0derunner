@@ -78,28 +78,6 @@ def process_stats(vip,username,password):
         ctr_result=ctr_response.json()
         ctr_entities=ctr_result["entities"]
 
-        #Do the per VM stats
-        if collect_vm_stats:
-            for entity in vm_entities:
-                vmname=entity["vmName"]
-                print(vmname)
-
-                for stat_name in entity["stats"]:
-                    if use_method:
-                        if stat_name in vm_stats_list:
-                            stat_value=entity["stats"][stat_name]
-                            print(vmname,stat_name,stat_value)
-                            #g.labels(vmname,stat_name).set(stat_value)
-                            gid=gVM.labels(vmname,stat_name)
-                            gid.set(stat_value)
-                    else:
-                        stat_value=entity["stats"][stat_name]
-                        print(vmname,stat_name,stat_value)
-                        #g.labels(vmname,stat_name).set(stat_value)
-                        gid=gVM.labels(vmname,stat_name)
-                        gid.set(stat_value)
-                #Summary(job="vmstats", registry=registry,grouping_key={'instance': vip})
-                #push_to_gateway('localhost:9091', job="vmstats", registry=registry,grouping_key={'instance': vip})
                 
         #Do the per Host stats
         if collect_host_stats:
@@ -123,8 +101,8 @@ def process_stats(vip,username,password):
             #gather_container_stats(ctr_entities,use_method,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold)
             gather_ceneric_storage_stats(ctr_entities,use_method,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold)
         #Maybe collect per VM stats
-        #if collect_vm_stats:
-            #gather_ceneric_storage_stats(vm_entities,use_method,vm_stats_list,gVM,filter_spurious_response_times,spurious_iops_threshold)
+        if collect_vm_stats:
+            gather_ceneric_storage_stats(vm_entities,use_method,vm_stats_list,gVM,filter_spurious_response_times,spurious_iops_threshold)
 
 
         time.sleep(1)
