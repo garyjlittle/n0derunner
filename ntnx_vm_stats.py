@@ -10,6 +10,13 @@ import random
 import argparse
 import os
 
+global collect_container_stats,collect_host_stats,collect_vm_stats,use_method
+
+collect_vm_stats=True
+collect_host_stats=True
+collect_container_stats=True
+use_method=False
+
 
 def main():
     parser=argparse.ArgumentParser()
@@ -24,19 +31,18 @@ def main():
         print("Need a vip, username and password")
         exit(1)
     
+
     check_prism_accessible(vip)
     process_stats(vip,username,password)
+
+
 
 
 def process_stats(vip,username,password):
     container_stats_list=load_defined_stats("container-api-stats-config.txt")
     vm_stats_list=load_defined_stats("vm-api-stats-config.txt")
+    host_stats_list=load_defined_stats("host-api-stats-config.txt")
 
-    collect_vm_stats=True
-    collect_host_stats=False
-    collect_container_stats=True
-
-    use_method=False
     
     #Attempt to fileter spurious respnse time values for very low IO rates
     filter_spurious_response_times=True
@@ -96,18 +102,18 @@ def process_stats(vip,username,password):
 
         #Maybe collect per Container storage stats
         if collect_container_stats:
-            #gather_container_stats(ctr_entities,use_method,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold)
-            #Do Generic
-            #gather_container_stats(ctr_entities,use_method,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold)
-            gather_ceneric_storage_stats("container",ctr_entities,use_method,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold)
+            gather_ceneric_storage_stats("container",ctr_entities,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold)
         #Maybe collect per VM stats
         if collect_vm_stats:
-            gather_ceneric_storage_stats("vm",vm_entities,use_method,vm_stats_list,gVM,filter_spurious_response_times,spurious_iops_threshold)
+            gather_ceneric_storage_stats("vm",vm_entities,vm_stats_list,gVM,filter_spurious_response_times,spurious_iops_threshold)
+        #Maybe collect per Host stats
+        if collect_host_stats:
+            gather_ceneric_storage_stats("host",host_entities,host_stats_list,gHOST,filter_spurious_response_times,spurious_iops_threshold)
 
 
         time.sleep(1)
 
-def gather_ceneric_storage_stats(family,ctr_entities,use_method,stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold):                             
+def gather_ceneric_storage_stats(family,ctr_entities,stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold):                             
     for entity in ctr_entities:
             #pprint.pprint(entity)
             #exit()
@@ -115,6 +121,8 @@ def gather_ceneric_storage_stats(family,ctr_entities,use_method,stats_list,gCTR,
                 entity_name=entity["name"]
             if family == "vm":
                 entity_name=entity["vmName"]
+            if family == "host":
+                entity_name=entity["name"]
             print("container=",entity_name)
 
             for stat_name in entity["stats"]:
@@ -146,11 +154,6 @@ def gather_ceneric_storage_stats(family,ctr_entities,use_method,stats_list,gCTR,
                     gid.set("0")
 
 
-
-                    
-
-
-
 def check_prism_accessible(vip):
     #Check name resolution
     url="http://"+vip
@@ -167,16 +170,7 @@ def check_prism_accessible(vip):
             message = 'DNSLookupError'
         else:
             raise
-    print("URL OK")
     return url, status, message
-    requests.packages.urllib3.disable_warnings()
-    url="http://"+vip
-    try:
-        page = requests.get(url,verify=False,timeout=5)
-        print(page.status_code)
-    except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError):
-        print("Error URL is unreachable")
-        exit(1)
 
 def load_defined_stats(filename):
     defined_stats=[]
