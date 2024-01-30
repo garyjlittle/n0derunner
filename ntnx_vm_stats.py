@@ -29,6 +29,19 @@ def main():
 
 
 def process_stats(vip,username,password):
+    container_stats_list=load_defined_stats("container-api-stats-config.txt")
+    vm_stats_list=load_defined_stats("vm-api-stats-config.txt")
+
+    collect_vm_stats=True
+    collect_host_stats=False
+    collect_container_stats=False
+
+    use_method=False
+    
+    #Attempt to fileter spurious respnse time values for very low IO rates
+    filter_spurious_response_times=True
+    spurious_iops_threshold=50
+
     #Gauges etc. must be instantiated before starting the http server
     #they can be updata at any time afterwards...
     prometheus_client.instance_ip_grouping_key()
@@ -66,47 +79,87 @@ def process_stats(vip,username,password):
         ctr_entities=ctr_result["entities"]
 
         #Do the per VM stats
-        for entity in vm_entities:
-            vmname=entity["vmName"]
-            print(vmname)
+        if collect_vm_stats:
+            for entity in vm_entities:
+                vmname=entity["vmName"]
+                print(vmname)
 
-            for stat_name in entity["stats"]:
-                stat_value=entity["stats"][stat_name]
-                print(vmname,stat_name,stat_value)
-                #g.labels(vmname,stat_name).set(stat_value)
-                gid=gVM.labels(vmname,stat_name)
-                gid.set(stat_value)
-            #Summary(job="vmstats", registry=registry,grouping_key={'instance': vip})
-            #push_to_gateway('localhost:9091', job="vmstats", registry=registry,grouping_key={'instance': vip})
+                for stat_name in entity["stats"]:
+                    if use_method:
+                        if stat_name in vm_stats_list:
+                            stat_value=entity["stats"][stat_name]
+                            print(vmname,stat_name,stat_value)
+                            #g.labels(vmname,stat_name).set(stat_value)
+                            gid=gVM.labels(vmname,stat_name)
+                            gid.set(stat_value)
+                    else:
+                        stat_value=entity["stats"][stat_name]
+                        print(vmname,stat_name,stat_value)
+                        #g.labels(vmname,stat_name).set(stat_value)
+                        gid=gVM.labels(vmname,stat_name)
+                        gid.set(stat_value)
+                #Summary(job="vmstats", registry=registry,grouping_key={'instance': vip})
+                #push_to_gateway('localhost:9091', job="vmstats", registry=registry,grouping_key={'instance': vip})
                 
         #Do the per Host stats
-        for entity in host_entities:
-            #pprint.pprint(entity)
-            #exit()
-            hostname=entity["name"]
-            print("hostname=",hostname)
+        if collect_host_stats:
+            for entity in host_entities:
+                #pprint.pprint(entity)
+                #exit()
+                hostname=entity["name"]
+                print("hostname=",hostname)
 
-            for stat_name in entity["stats"]:
-                stat_value=entity["stats"][stat_name]
-                print(hostname,stat_name,stat_value)
-                #g.labels(vmname,stat_name).set(stat_value)
-                gid=gHOST.labels(hostname,stat_name)
-                gid.set(stat_value)
+                for stat_name in entity["stats"]:
+                    stat_value=entity["stats"][stat_name]
+                    print(hostname,stat_name,stat_value)
+                    #g.labels(vmname,stat_name).set(stat_value)
+                    gid=gHOST.labels(hostname,stat_name)
+                    gid.set(stat_value)
 
-        #Do the per Container stats
-        for entity in ctr_entities:
+        #Maybe collect per Container stats
+        if collect_container_stats:
+            gather_container_stats(ctr_entities,use_method,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold)
+        time.sleep(1)
+
+
+
+def gather_container_stats(ctr_entities,use_method,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold):                             
+    for entity in ctr_entities:
             #pprint.pprint(entity)
             #exit()
             ctrname=entity["name"]
             print("container=",ctrname)
 
             for stat_name in entity["stats"]:
-                stat_value=entity["stats"][stat_name]
-                print(ctrname,stat_name,stat_value)
-                #g.labels(vmname,stat_name).set(stat_value)
-                gid=gCTR.labels(ctrname,stat_name)
-                gid.set(stat_value)
-        time.sleep(1)
+                if use_method:
+                    if stat_name in container_stats_list:
+                        stat_value=entity["stats"][stat_name]
+                        print(ctrname,stat_name,stat_value)
+                        #g.labels(vmname,stat_name).set(stat_value)
+                        gid=gCTR.labels(ctrname,stat_name)
+                        gid.set(stat_value)
+                else:
+                        stat_value=entity["stats"][stat_name]
+                        print(ctrname,stat_name,stat_value)
+                        #g.labels(vmname,stat_name).set(stat_value)
+                        gid=gCTR.labels(ctrname,stat_name)
+                        gid.set(stat_value)
+            if filter_spurious_response_times:
+                print("Supressing spurious values")
+                read_rate_iops=entity["stats"]["controller_num_read_iops"]
+                write_rate_iops=entity["stats"]["controller_num_write_iops"]
+
+                if (int(read_rate_iops)<spurious_iops_threshold):
+                    print("read iops too low, supressing write response times")
+                    gid=gCTR.labels(ctrname,"controller_avg_read_io_latency_usecs")
+                    gid.set("0")
+                if (int(write_rate_iops)<spurious_iops_threshold):
+                    print("write iops too low, supressing write response times")
+                    gid=gCTR.labels(ctrname,"controller_avg_write_io_latency_usecs")
+                    gid.set("0")
+
+
+                    
 
 
 
@@ -137,6 +190,12 @@ def check_prism_accessible(vip):
         print("Error URL is unreachable")
         exit(1)
 
+def load_defined_stats(filename):
+    defined_stats=[]
+    with open(filename) as f:
+        for line in f:
+            defined_stats.append(line.strip())
+    return defined_stats
 
 if __name__ == '__main__':
     main()
