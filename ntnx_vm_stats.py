@@ -116,33 +116,39 @@ def process_stats(vip,username,password):
                     gid=gHOST.labels(hostname,stat_name)
                     gid.set(stat_value)
 
-        #Maybe collect per Container stats
+        #Maybe collect per Container storage stats
         if collect_container_stats:
-            gather_container_stats(ctr_entities,use_method,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold)
+            #gather_container_stats(ctr_entities,use_method,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold)
+            #Do Generic
+            #gather_container_stats(ctr_entities,use_method,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold)
+            gather_ceneric_storage_stats(ctr_entities,use_method,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold)
+        #Maybe collect per VM stats
+        #if collect_vm_stats:
+            #gather_ceneric_storage_stats(vm_entities,use_method,vm_stats_list,gVM,filter_spurious_response_times,spurious_iops_threshold)
+
+
         time.sleep(1)
 
-
-
-def gather_container_stats(ctr_entities,use_method,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold):                             
+def gather_ceneric_storage_stats(ctr_entities,use_method,stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold):                             
     for entity in ctr_entities:
             #pprint.pprint(entity)
             #exit()
-            ctrname=entity["name"]
-            print("container=",ctrname)
+            entity_name=entity["name"]
+            print("container=",entity_name)
 
             for stat_name in entity["stats"]:
                 if use_method:
-                    if stat_name in container_stats_list:
+                    if stat_name in stats_list:
                         stat_value=entity["stats"][stat_name]
-                        print(ctrname,stat_name,stat_value)
+                        print(entity_name,stat_name,stat_value)
                         #g.labels(vmname,stat_name).set(stat_value)
-                        gid=gCTR.labels(ctrname,stat_name)
+                        gid=gCTR.labels(entity_name,stat_name)
                         gid.set(stat_value)
                 else:
                         stat_value=entity["stats"][stat_name]
-                        print(ctrname,stat_name,stat_value)
+                        print(entity_name,stat_name,stat_value)
                         #g.labels(vmname,stat_name).set(stat_value)
-                        gid=gCTR.labels(ctrname,stat_name)
+                        gid=gCTR.labels(entity_name,stat_name)
                         gid.set(stat_value)
             if filter_spurious_response_times:
                 print("Supressing spurious values")
@@ -151,11 +157,46 @@ def gather_container_stats(ctr_entities,use_method,container_stats_list,gCTR,fil
 
                 if (int(read_rate_iops)<spurious_iops_threshold):
                     print("read iops too low, supressing write response times")
-                    gid=gCTR.labels(ctrname,"controller_avg_read_io_latency_usecs")
+                    gid=gCTR.labels(entity_name,"controller_avg_read_io_latency_usecs")
                     gid.set("0")
                 if (int(write_rate_iops)<spurious_iops_threshold):
                     print("write iops too low, supressing write response times")
-                    gid=gCTR.labels(ctrname,"controller_avg_write_io_latency_usecs")
+                    gid=gCTR.labels(entity_name,"controller_avg_write_io_latency_usecs")
+                    gid.set("0")
+
+def gather_container_stats(ctr_entities,use_method,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold):                             
+    for entity in ctr_entities:
+            #pprint.pprint(entity)
+            #exit()
+            entity_name=entity["name"]
+            print("container=",entity_name)
+
+            for stat_name in entity["stats"]:
+                if use_method:
+                    if stat_name in container_stats_list:
+                        stat_value=entity["stats"][stat_name]
+                        print(entity_name,stat_name,stat_value)
+                        #g.labels(vmname,stat_name).set(stat_value)
+                        gid=gCTR.labels(entity_name,stat_name)
+                        gid.set(stat_value)
+                else:
+                        stat_value=entity["stats"][stat_name]
+                        print(entity_name,stat_name,stat_value)
+                        #g.labels(vmname,stat_name).set(stat_value)
+                        gid=gCTR.labels(entity_name,stat_name)
+                        gid.set(stat_value)
+            if filter_spurious_response_times:
+                print("Supressing spurious values")
+                read_rate_iops=entity["stats"]["controller_num_read_iops"]
+                write_rate_iops=entity["stats"]["controller_num_write_iops"]
+
+                if (int(read_rate_iops)<spurious_iops_threshold):
+                    print("read iops too low, supressing write response times")
+                    gid=gCTR.labels(entity_name,"controller_avg_read_io_latency_usecs")
+                    gid.set("0")
+                if (int(write_rate_iops)<spurious_iops_threshold):
+                    print("write iops too low, supressing write response times")
+                    gid=gCTR.labels(entity_name,"controller_avg_write_io_latency_usecs")
                     gid.set("0")
 
 
