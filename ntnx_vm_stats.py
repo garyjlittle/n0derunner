@@ -15,8 +15,7 @@ global collect_container_stats,collect_host_stats,collect_vm_stats,use_method
 collect_vm_stats=True
 collect_host_stats=True
 collect_container_stats=True
-use_method=False
-
+use_method=True
 
 def main():
     parser=argparse.ArgumentParser()
@@ -35,15 +34,11 @@ def main():
     check_prism_accessible(vip)
     process_stats(vip,username,password)
 
-
-
-
 def process_stats(vip,username,password):
-    container_stats_list=load_defined_stats("container-api-stats-config.txt")
+    container_stats_list=load_defined_stats_json("container-api-stats-config.json")
     vm_stats_list=load_defined_stats("vm-api-stats-config.txt")
     host_stats_list=load_defined_stats("host-api-stats-config.txt")
 
-    
     #Attempt to fileter spurious respnse time values for very low IO rates
     filter_spurious_response_times=True
     spurious_iops_threshold=50
@@ -52,8 +47,8 @@ def process_stats(vip,username,password):
     #they can be updata at any time afterwards...
     prometheus_client.instance_ip_grouping_key()
     gVM = Gauge('v1_stat_vm', 'VM stat',labelnames=['vmname','statname'])
-    gHOST = Gauge('v1_stat_host', 'VM stat',labelnames=['hostname','statname'])
-    gCTR = Gauge('v1_stat_container', 'VM stat',labelnames=['container','statname'])
+    gHOST = Gauge('v1_stat_host', 'Host stat',labelnames=['hostname','statname'])
+    gCTR = Gauge('v1_stat_container', 'Container stat',labelnames=['container','statname'])
 
     # Need to start the "prometheus" http server after the Gauges are instantiated
     start_http_server(8000)
@@ -62,7 +57,6 @@ def process_stats(vip,username,password):
     v1_stat_VM_URL="https://"+vip+":9440/PrismGateway/services/rest/v1/vms/"
     v1_stat_HOST_URL="https://"+vip+":9440/PrismGateway/services/rest/v1/hosts/"
     v1_stat_CTR_URL="https://"+vip+":9440/PrismGateway/services/rest/v1/containers/"
-
 
     while(True):
         try:
@@ -83,23 +77,7 @@ def process_stats(vip,username,password):
 
         ctr_result=ctr_response.json()
         ctr_entities=ctr_result["entities"]
-
-                
-        #Do the per Host stats
-        if collect_host_stats:
-            for entity in host_entities:
-                #pprint.pprint(entity)
-                #exit()
-                hostname=entity["name"]
-                print("hostname=",hostname)
-
-                for stat_name in entity["stats"]:
-                    stat_value=entity["stats"][stat_name]
-                    print(hostname,stat_name,stat_value)
-                    #g.labels(vmname,stat_name).set(stat_value)
-                    gid=gHOST.labels(hostname,stat_name)
-                    gid.set(stat_value)
-
+            
         #Maybe collect per Container storage stats
         if collect_container_stats:
             gather_ceneric_storage_stats("container",ctr_entities,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold)
@@ -109,7 +87,6 @@ def process_stats(vip,username,password):
         #Maybe collect per Host stats
         if collect_host_stats:
             gather_ceneric_storage_stats("host",host_entities,host_stats_list,gHOST,filter_spurious_response_times,spurious_iops_threshold)
-
 
         time.sleep(1)
 
@@ -153,7 +130,6 @@ def gather_ceneric_storage_stats(family,ctr_entities,stats_list,gCTR,filter_spur
                     gid=gCTR.labels(entity_name,"controller_avg_write_io_latency_usecs")
                     gid.set("0")
 
-
 def check_prism_accessible(vip):
     #Check name resolution
     url="http://"+vip
@@ -171,6 +147,23 @@ def check_prism_accessible(vip):
         else:
             raise
     return url, status, message
+
+def load_defined_stats_json(filename):
+    defined_stats=[]
+    f=open(filename)
+
+    res=json.load(f)
+    pprint.pprint(res)
+    pprint.pprint(res["container_stats"])
+    inner=res["container_stats"]
+
+    for tup in inner:
+        if "controller_num_iops" in tup.values():
+            defined_stats.append(tup["name"])
+            #print(tup["type"])
+            #print(tup["description"])
+            continue
+    return defined_stats
 
 def load_defined_stats(filename):
     defined_stats=[]
