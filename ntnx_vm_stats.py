@@ -16,14 +16,14 @@ collect_vm_stats=True
 collect_host_stats=True
 collect_container_stats=True
 #Attempt to fileter spurious respnse time values for very low IO rates
-filter_spurious_response_times=False
+filter_spurious_response_times=True
 spurious_iops_threshold=50
             
 restrict_counter_set=True
 # Counter Centric groups the stats by counter (e.g. read iops, resposnse times) - entities are labels
 # Entity Centric groups the stats by entities (e.g. vms, containers, hosts) - counters are labels
 # Counter centric is always restricted
-counter_centric=True
+counter_centric=False
 
 
 def main():
@@ -83,29 +83,27 @@ def push_counter_centric_to_prometheus(family,entities):
         gTPUTWrite.labels(family,entity_name).set(entity["stats"]["controller_write_io_bandwidth_kBps"])
         gTPUTRW.labels(family,entity_name).set(entity["stats"]["controller_io_bandwidth_kBps"])
         gRWResp.labels(family,entity_name).set(entity["stats"]["controller_avg_io_latency_usecs"])
+        gREADResp.labels(family,entity_name).set(entity["stats"]["controller_avg_read_io_latency_usecs"])
+        gWRITEResp.labels(family,entity_name).set(entity["stats"]["controller_avg_write_io_latency_usecs"])
+
+        #Maybe overwrite response times with -1 if the rates fall below the spurious IO threshold
         if filter_spurious_response_times:
-            #Maybe it would be better to set the spurious values to -1 to indicate
-            #that supression has occurred.
             read_rate_iops=entity["stats"]["controller_num_read_iops"]
             write_rate_iops=entity["stats"]["controller_num_write_iops"]
             if (int(read_rate_iops)<spurious_iops_threshold):
                 print("Supressing spurious read resp for ",entity_name)
-                gREADResp.labels(family,entity_name).set(0)
-                gRWResp.labels(family,entity_name).set(0)
-            else:
-                gREADResp.labels(family,entity_name).set(entity["stats"]["controller_avg_read_io_latency_usecs"])
+                gREADResp.labels(family,entity_name).set(-1)
+          
             if (int(write_rate_iops)<spurious_iops_threshold):
                 print("Supressing spurious write resp for ",entity_name)
-                gWRITEResp.labels(family,entity_name).set(0)
-                gRWResp.labels(family,entity_name).set(0)
-            else:
-                gWRITEResp.labels(family,entity_name).set(entity["stats"]["controller_avg_write_io_latency_usecs"])
+                gWRITEResp.labels(family,entity_name).set(-1)
 
-        else:
-            #Don't filter
-            gRWResp.labels(family,entity_name).set(entity["stats"]["controller_avg_io_latency_usecs"])
-            gREADResp.labels(family,entity_name).set(entity["stats"]["controller_avg_read_io_latency_usecs"])
-            gWRITEResp.labels(family,entity_name).set(entity["stats"]["controller_avg_write_io_latency_usecs"])
+            if int(write_rate_iops)+int(read_rate_iops)<spurious_iops_threshold:
+                print("Supressing spurious R/W resp for ",entity_name)
+                gRWResp.labels(family,entity_name).set(-1)
+    
+
+
 
         #
         # Do CPU Utilization for Hosts and VMs
@@ -198,6 +196,7 @@ def push_entity_centric_to_prometheus(family,entities):
                         print(entity_name,stat_name,stat_value)
                         gid=gGAUGE.labels(entity_name,stat_name)
                         gid.set(stat_value)
+            #Overwrite if falling below spurious IO rate threshold
             if filter_spurious_response_times:
                 print("Supressing spurious values")
                 read_rate_iops=entity["stats"]["controller_num_read_iops"]
@@ -205,12 +204,13 @@ def push_entity_centric_to_prometheus(family,entities):
 
                 if (int(read_rate_iops)<spurious_iops_threshold):
                     print("read iops too low, supressing write response times")
-                    gid=gGAUGE.labels(entity_name,"controller_avg_read_io_latency_usecs")
-                    gid.set("0")
+                    gGAUGE.labels(entity_name,"controller_avg_read_io_latency_usecs").set("-1")
                 if (int(write_rate_iops)<spurious_iops_threshold):
                     print("write iops too low, supressing write response times")
-                    gid=gGAUGE.labels(entity_name,"controller_avg_write_io_latency_usecs")
-                    gid.set("0")
+                    gGAUGE.labels(entity_name,"controller_avg_write_io_latency_usecs").set("-1")
+                if (int(write_rate_iops)+int(read_rate_iops)<spurious_iops_threshold):
+                    gGAUGE.labels(entity_name,"controller_avg_read_io_latency_usecs").set("-1")
+
 
 def check_prism_accessible(vip):
     #Check name resolution
