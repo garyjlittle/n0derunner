@@ -42,11 +42,14 @@ def main():
         while(True):
             for family in ["containers","vms","hosts"]:
                 entities=get_family_from_api(vip,family)
-                print("Stats",entities[2]["stats"]["controller_num_iops"])
                 push_counter_centric_to_prometheus(family,entities)
                 time.sleep(1)
 
     else:
+        while(True):
+            for family in ["containers","vms","hosts"]:
+                entites=get_family_from_api(vip,family):
+                process_stats(family,entities)
         #Entity Centric.  Metrics/Counters are labels
         setup_prometheus_endpoint_entity_centric()
         process_stats(vip,username,password)
@@ -130,63 +133,34 @@ def setup_prometheus_counter_centric():
     # Need to start the "prometheus" http server after the Gauges are instantiated
     start_http_server(8000)
 
-def process_stats(vip,username,password):
-    container_stats_list=load_defined_stats_json("container-api-stats-config.json")
-    vm_stats_list=load_defined_stats("vm-api-stats-config.txt")
-    host_stats_list=load_defined_stats("host-api-stats-config.txt")
+def process_stats(family,entities):
+
+    stats_list=load_defined_stats("api-stats-config.txt")
 
     #Attempt to fileter spurious respnse time values for very low IO rates
     filter_spurious_response_times=True
     spurious_iops_threshold=50
-
-
-
-    requests.packages.urllib3.disable_warnings()
-    v1_stat_VM_URL="https://"+vip+":9440/PrismGateway/services/rest/v1/vms/"
-    v1_stat_HOST_URL="https://"+vip+":9440/PrismGateway/services/rest/v1/hosts/"
-    v1_stat_CTR_URL="https://"+vip+":9440/PrismGateway/services/rest/v1/containers/"
-
-    while(True):
-        try:
-            vm_response=requests.get(v1_stat_VM_URL, auth=HTTPBasicAuth(username,password),verify=False)
-            vm_response.raise_for_status()
-            host_response=requests.get(v1_stat_HOST_URL, auth=HTTPBasicAuth(username,password),verify=False)
-            host_response.raise_for_status()
-            ctr_response=requests.get(v1_stat_CTR_URL, auth=HTTPBasicAuth(username,password),verify=False)
-            ctr_response.raise_for_status()            
-        except requests.exceptions.HTTPError as err:
-            raise SystemExit(err)
-
-        vm_result=vm_response.json()
-        vm_entities=vm_result["entities"]
-
-        host_result=host_response.json()
-        host_entities=host_result["entities"]
-
-        ctr_result=ctr_response.json()
-        ctr_entities=ctr_result["entities"]
             
-        #Maybe collect per Container storage stats
-        if collect_container_stats:
-            gather_ceneric_storage_stats("container",ctr_entities,container_stats_list,gCTR,filter_spurious_response_times,spurious_iops_threshold)
-        #Maybe collect per VM stats
-        if collect_vm_stats:
-            gather_ceneric_storage_stats("vm",vm_entities,vm_stats_list,gVM,filter_spurious_response_times,spurious_iops_threshold)
-        #Maybe collect per Host stats
-        if collect_host_stats:
-            gather_ceneric_storage_stats("host",host_entities,host_stats_list,gHOST,filter_spurious_response_times,spurious_iops_threshold)
 
-        time.sleep(1)
+    if family == "vms":
+        gGAUGE=gVM
+    if family == "containers":
+        gGAUGE=gCTR
+    if family == "hosts":
+        gGAUGE=gHOST
+ 
+    gather_ceneric_storage_stats(family,entities,stats_list,gGAUGE,filter_spurious_response_times,spurious_iops_threshold)
+ 
 
 def gather_ceneric_storage_stats(family,family_entities,stats_list,gGAUGE,filter_spurious_response_times,spurious_iops_threshold):                             
     #Get data from the dictionary passed in and set the gauges
     for entity in family_entities:
             #Each family may use a different identifier for the entity name.
-            if family == "container":
+            if family == "containers":
                 entity_name=entity["name"]
-            if family == "vm":
+            if family == "vms":
                 entity_name=entity["vmName"]
-            if family == "host":
+            if family == "hosts":
                 entity_name=entity["name"]
             # regardless of the family, the stats are always stored in a  
             # structure called stats.  Within the stats structure the data 
