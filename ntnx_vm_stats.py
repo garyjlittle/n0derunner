@@ -19,7 +19,7 @@ restrict_counter_set=False
 # Counter Centric groups the stats by counter (e.g. read iops, resposnse times) - entities are labels
 # Entity Centric groups the stats by entities (e.g. vms, containers, hosts) - counters are labels
 # Counter centric is always restricted
-counter_centric=True
+counter_centric=False
 
 
 def main():
@@ -49,12 +49,12 @@ def main():
                 time.sleep(1)
 
     else:
+        #Entity Centric.  Metrics/Counters are labels
         setup_prometheus_endpoint_entity_centric()
         while(True):
             for family in ["containers","vms","hosts"]:
                 entities=get_family_from_api(vip,family)
                 process_stats(family,entities)
-        #Entity Centric.  Metrics/Counters are labels
         setup_prometheus_endpoint_entity_centric()
         process_stats(vip,username,password)
 
@@ -92,7 +92,6 @@ def push_counter_centric_to_prometheus(family,entities):
                     #CPU Ready is only applicable to VMs running on a Hypervisor, not the host itself
                     gCPU_READY.labels(family,entity_name).set(entity["stats"]["hypervisor.cpu_ready_time_ppm"])
             gCPU_UTIL.labels(family,entity_name).set(entity["stats"]["hypervisor_cpu_usage_ppm"])
-
 
 def get_family_from_api(vip,family):
     requests.packages.urllib3.disable_warnings()
@@ -154,7 +153,6 @@ def process_stats(family,entities):
  
     gather_ceneric_storage_stats(family,entities,stats_list,gGAUGE,filter_spurious_response_times,spurious_iops_threshold)
  
-
 def gather_ceneric_storage_stats(family,family_entities,stats_list,gGAUGE,filter_spurious_response_times,spurious_iops_threshold):                             
     #Get data from the dictionary passed in and set the gauges
     for entity in family_entities:
@@ -237,23 +235,6 @@ def load_defined_stats_json(filename):
             #print(tup["description"])
             continue
     return defined_stats
-
-def get_stats_dict(filename):
-    defined_stats=[]
-    f=open(filename)
-
-    res=json.load(f)
-    #pprint.pprint(res)
-    #print.pprint(res["container_stats"])
-    inner=res["container_stats"]
-
-    for tup in inner:
-        if "controller_num_iops" in tup.values():
-            defined_stats.append(tup["name"])
-            #print(tup["type"])
-            #print(tup["description"])
-            continue
-    return res["container_stats"]
 
 def load_defined_stats(filename):
     defined_stats=[]
