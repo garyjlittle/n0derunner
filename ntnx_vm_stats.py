@@ -15,7 +15,7 @@ global collect_container_stats,collect_host_stats,collect_vm_stats,use_method,cu
 collect_vm_stats=True
 collect_host_stats=True
 collect_container_stats=True
-restrict_counter_set=False
+restrict_counter_set=True
 # Counter Centric groups the stats by counter (e.g. read iops, resposnse times) - entities are labels
 # Entity Centric groups the stats by entities (e.g. vms, containers, hosts) - counters are labels
 # Counter centric is always restricted
@@ -41,7 +41,7 @@ def main():
     if counter_centric:
         print("is curated")
         #Metric/Counter Centric, entites are labels
-        setup_prometheus_counter_centric()
+        setup_prometheus_endpoint_counter_centric()
         while(True):
             for family in ["containers","vms","hosts"]:
                 entities=get_family_from_api(vip,family)
@@ -54,9 +54,9 @@ def main():
         while(True):
             for family in ["containers","vms","hosts"]:
                 entities=get_family_from_api(vip,family)
-                process_stats(family,entities)
+                push_entity_centric_to_prometheus(family,entities)
         setup_prometheus_endpoint_entity_centric()
-        process_stats(vip,username,password)
+        push_entity_centric_to_prometheus(vip,username,password)
 
 
 #-----------
@@ -109,13 +109,13 @@ def setup_prometheus_endpoint_entity_centric():
     #
     global gVM,gHOST,gCTR
     prometheus_client.instance_ip_grouping_key()
-    gVM = Gauge('vm_stats', 'VM stat',labelnames=['vmname','statname'])
-    gHOST = Gauge('host_stats', 'Host stat',labelnames=['hostname','statname'])
-    gCTR = Gauge('container_stats', 'Container stat',labelnames=['container','statname'])
+    gVM = Gauge('vm_stats', 'Stats grouped by VM',labelnames=['vmname','statname'])
+    gHOST = Gauge('host_stats', 'Stats grouped by Pysical Host',labelnames=['hostname','statname'])
+    gCTR = Gauge('container_stats', 'Stats grouped by Storage Container',labelnames=['container','statname'])
     # Need to start the "prometheus" http server after the Gauges are instantiated
     start_http_server(8000)
 
-def setup_prometheus_counter_centric():
+def setup_prometheus_endpoint_counter_centric():
     #
     # Setup guages for IOPS, Throughput and CPU Utilization
     #
@@ -136,7 +136,7 @@ def setup_prometheus_counter_centric():
     # Need to start the "prometheus" http server after the Gauges are instantiated
     start_http_server(8000)
 
-def process_stats(family,entities):
+def push_entity_centric_to_prometheus(family,entities):
 
     stats_list=load_defined_stats("api-stats-config.txt")
 
@@ -151,11 +151,8 @@ def process_stats(family,entities):
     if family == "hosts":
         gGAUGE=gHOST
  
-    gather_ceneric_storage_stats(family,entities,stats_list,gGAUGE,filter_spurious_response_times,spurious_iops_threshold)
- 
-def gather_ceneric_storage_stats(family,family_entities,stats_list,gGAUGE,filter_spurious_response_times,spurious_iops_threshold):                             
-    #Get data from the dictionary passed in and set the gauges
-    for entity in family_entities:
+     #Get data from the dictionary passed in and set the gauges
+    for entity in entities:
             #Each family may use a different identifier for the entity name.
             if family == "containers":
                 entity_name=entity["name"]
