@@ -10,16 +10,20 @@ import random
 import argparse
 import os
 
-global collect_container_stats,collect_host_stats,collect_vm_stats,use_method,curated
+global collect_container_stats,collect_host_stats,collect_vm_stats,use_method,curated,filter_spurious_response_times,spurious_iops_threshold
 
 collect_vm_stats=True
 collect_host_stats=True
 collect_container_stats=True
+#Attempt to fileter spurious respnse time values for very low IO rates
+filter_spurious_response_times=False
+spurious_iops_threshold=50
+            
 restrict_counter_set=True
 # Counter Centric groups the stats by counter (e.g. read iops, resposnse times) - entities are labels
 # Entity Centric groups the stats by entities (e.g. vms, containers, hosts) - counters are labels
 # Counter centric is always restricted
-counter_centric=False
+counter_centric=True
 
 
 def main():
@@ -39,7 +43,6 @@ def main():
     check_prism_accessible(vip)
 
     if counter_centric:
-        print("is curated")
         #Metric/Counter Centric, entites are labels
         setup_prometheus_endpoint_counter_centric()
         while(True):
@@ -55,8 +58,6 @@ def main():
             for family in ["containers","vms","hosts"]:
                 entities=get_family_from_api(vip,family)
                 push_entity_centric_to_prometheus(family,entities)
-        setup_prometheus_endpoint_entity_centric()
-        push_entity_centric_to_prometheus(vip,username,password)
 
 
 #-----------
@@ -81,9 +82,31 @@ def push_counter_centric_to_prometheus(family,entities):
         gTPUTRead.labels(family,entity_name).set(entity["stats"]["controller_read_io_bandwidth_kBps"])
         gTPUTWrite.labels(family,entity_name).set(entity["stats"]["controller_write_io_bandwidth_kBps"])
         gTPUTRW.labels(family,entity_name).set(entity["stats"]["controller_io_bandwidth_kBps"])
-        gREADResp.labels(family,entity_name).set(entity["stats"]["controller_avg_read_io_latency_usecs"])
-        gWRITEResp.labels(family,entity_name).set(entity["stats"]["controller_avg_write_io_latency_usecs"])
         gRWResp.labels(family,entity_name).set(entity["stats"]["controller_avg_io_latency_usecs"])
+        if filter_spurious_response_times:
+            #Maybe it would be better to set the spurious values to -1 to indicate
+            #that supression has occurred.
+            read_rate_iops=entity["stats"]["controller_num_read_iops"]
+            write_rate_iops=entity["stats"]["controller_num_write_iops"]
+            if (int(read_rate_iops)<spurious_iops_threshold):
+                print("Supressing spurious read resp for ",entity_name)
+                gREADResp.labels(family,entity_name).set(0)
+                gRWResp.labels(family,entity_name).set(0)
+            else:
+                gREADResp.labels(family,entity_name).set(entity["stats"]["controller_avg_read_io_latency_usecs"])
+            if (int(write_rate_iops)<spurious_iops_threshold):
+                print("Supressing spurious write resp for ",entity_name)
+                gWRITEResp.labels(family,entity_name).set(0)
+                gRWResp.labels(family,entity_name).set(0)
+            else:
+                gWRITEResp.labels(family,entity_name).set(entity["stats"]["controller_avg_write_io_latency_usecs"])
+
+        else:
+            #Don't filter
+            gRWResp.labels(family,entity_name).set(entity["stats"]["controller_avg_io_latency_usecs"])
+            gREADResp.labels(family,entity_name).set(entity["stats"]["controller_avg_read_io_latency_usecs"])
+            gWRITEResp.labels(family,entity_name).set(entity["stats"]["controller_avg_write_io_latency_usecs"])
+
         #
         # Do CPU Utilization for Hosts and VMs
         #
@@ -140,10 +163,6 @@ def push_entity_centric_to_prometheus(family,entities):
 
     stats_list=load_defined_stats("api-stats-config.txt")
 
-    #Attempt to fileter spurious respnse time values for very low IO rates
-    filter_spurious_response_times=True
-    spurious_iops_threshold=50
-            
     if family == "vms":
         gGAUGE=gVM
     if family == "containers":
