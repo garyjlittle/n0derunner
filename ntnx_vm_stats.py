@@ -15,8 +15,11 @@ global collect_container_stats,collect_host_stats,collect_vm_stats,use_method,cu
 collect_vm_stats=True
 collect_host_stats=True
 collect_container_stats=True
-restrict_counter_set=True
-counter_centric=False
+restrict_counter_set=False
+# Counter Centric groups the stats by counter (e.g. read iops, resposnse times) - entities are labels
+# Entity Centric groups the stats by entities (e.g. vms, containers, hosts) - counters are labels
+# Counter centric is always restricted
+counter_centric=True
 
 
 def main():
@@ -46,9 +49,10 @@ def main():
                 time.sleep(1)
 
     else:
+        setup_prometheus_endpoint_entity_centric()
         while(True):
             for family in ["containers","vms","hosts"]:
-                entites=get_family_from_api(vip,family):
+                entities=get_family_from_api(vip,family)
                 process_stats(family,entities)
         #Entity Centric.  Metrics/Counters are labels
         setup_prometheus_endpoint_entity_centric()
@@ -104,11 +108,11 @@ def setup_prometheus_endpoint_entity_centric():
     #
     # Setup gauges for VMs Hosts and Containers
     #
-    global gVM,gHOST,gCTR,gIOPS_CTR
+    global gVM,gHOST,gCTR
     prometheus_client.instance_ip_grouping_key()
-    gVM = Gauge('v1_stat_vm', 'VM stat',labelnames=['vmname','statname'])
-    gHOST = Gauge('v1_stat_host', 'Host stat',labelnames=['hostname','statname'])
-    gCTR = Gauge('v1_stat_container', 'Container stat',labelnames=['container','statname'])
+    gVM = Gauge('vm_stats', 'VM stat',labelnames=['vmname','statname'])
+    gHOST = Gauge('host_stats', 'Host stat',labelnames=['hostname','statname'])
+    gCTR = Gauge('container_stats', 'Container stat',labelnames=['container','statname'])
     # Need to start the "prometheus" http server after the Gauges are instantiated
     start_http_server(8000)
 
@@ -141,7 +145,6 @@ def process_stats(family,entities):
     filter_spurious_response_times=True
     spurious_iops_threshold=50
             
-
     if family == "vms":
         gGAUGE=gVM
     if family == "containers":
@@ -213,6 +216,8 @@ def check_prism_accessible(vip):
             raise
     return url, status, message
 
+#Not currently used - for future use to setup the various
+#Metric centric gauges via configuration file (json)
 def load_defined_stats_json(filename):
     defined_stats=[]
     f=open(filename)
