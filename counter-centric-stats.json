@@ -1,0 +1,27 @@
+{"container_stats":[
+ {"name":"controller_num_iops",
+ "description":" Number of IOPS (read and write) serviced by this container",
+ "type":"gauge"},
+ {"name":"controller_num_write_iops",
+ "description":"Number of write IOPS at this container",
+ "type":"gauge"},
+ {"name":"controller_io_bandwidth_kBps",
+  "description":"Combined IO bandwidth (read and write) on this container in KB/s",
+  "type":"gauge"},
+  {"name":"controller_read_io_bandwidth_kBps",
+   "description":"Overall IO read bandwidth on this container in KB/s",
+   "type":"gauge"},
+ {"name":"controller_write_io_bandwidth_kBps",
+    "description":"Overall IO write bandwidth on this container in KB/s",
+    "type":"gauge"},
+ {"name":"controller_avg_io_latency_usecs",
+   "description":"Average IO response time combined reads and writes in uSec on this container",
+    "type":"gauge"},
+ {"name":"controller_avg_read_io_latency_usecs",
+  "description":"Average IO response time for reads in uSec on this container",
+   "type":"gauge"},
+ {"name":"controller_avg_write_io_latency_usecs",
+   "description":"Average IO response time for writes in uSec on this container",
+   "type":"gauge"}
+]
+}
