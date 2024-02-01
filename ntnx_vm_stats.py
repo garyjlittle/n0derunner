@@ -23,7 +23,8 @@ restrict_counter_set=True
 # Counter Centric groups the stats by counter (e.g. read iops, resposnse times) - entities are labels
 # Entity Centric groups the stats by entities (e.g. vms, containers, hosts) - counters are labels
 # Counter centric is always restricted
-counter_centric=False
+counter_centric=True
+entity_centric=True
 
 
 def main():
@@ -41,24 +42,25 @@ def main():
         exit(1)
     
     check_prism_accessible(vip)
+    setup_prometheus_endpoint_counter_centric()
+    setup_prometheus_endpoint_entity_centric()
+    #Start prometheus end-point
+    start_http_server(8000)
 
-    if counter_centric:
-        #Metric/Counter Centric, entites are labels
-        setup_prometheus_endpoint_counter_centric()
-        while(True):
-            for family in ["containers","vms","hosts"]:
-                entities=get_family_from_api(vip,family)
-                push_counter_centric_to_prometheus(family,entities)
-                time.sleep(1)
 
-    else:
-        #Entity Centric.  Metrics/Counters are labels
-        setup_prometheus_endpoint_entity_centric()
-        while(True):
-            for family in ["containers","vms","hosts"]:
-                entities=get_family_from_api(vip,family)
-                push_entity_centric_to_prometheus(family,entities)
+    while(True):
+        if counter_centric:
+            #Metric/Counter Centric, entites are labels
+                for family in ["containers","vms","hosts","clusters"]:
+                    entities=get_family_from_api(vip,family)
+                    push_counter_centric_to_prometheus(family,entities)
 
+        if entity_centric:
+            #Entity Centric.  Metrics/Counters are labels
+                for family in ["containers","vms","hosts","clusters"]:
+                    entities=get_family_from_api(vip,family)
+                    push_entity_centric_to_prometheus(family,entities)
+        time.sleep(1)
 
 #-----------
 # END Main
@@ -73,9 +75,12 @@ def push_counter_centric_to_prometheus(family,entities):
         if family == "containers":
             entity_name=(entity["name"])
         if family == "vms":
-            entity_name =(entity["vmName"])
+            entity_name=(entity["vmName"])
         if family == "hosts":
-            entity_name = (entity["name"])
+            entity_name=(entity["name"])
+        if family == "clusters":
+            entity_name=(entity["name"])
+        
         gIOPSRead.labels(family,entity_name).set(entity["stats"]["controller_num_read_iops"])
         gIOPSWrite.labels(family,entity_name).set(entity["stats"]["controller_num_write_iops"])
         gIOPSRW.labels(family,entity_name).set(entity["stats"]["controller_num_iops"])
@@ -128,13 +133,13 @@ def setup_prometheus_endpoint_entity_centric():
     #
     # Setup gauges for VMs Hosts and Containers
     #
-    global gVM,gHOST,gCTR
+    global gVM,gHOST,gCTR,gCLUSTER
     prometheus_client.instance_ip_grouping_key()
     gVM = Gauge('vm_stats', 'Stats grouped by VM',labelnames=['vmname','statname'])
     gHOST = Gauge('host_stats', 'Stats grouped by Pysical Host',labelnames=['hostname','statname'])
     gCTR = Gauge('container_stats', 'Stats grouped by Storage Container',labelnames=['container','statname'])
+    gCLUSTER = Gauge('cluster_stats','Stats grouped by cluster',labelnames=['clustername','statname'])
     # Need to start the "prometheus" http server after the Gauges are instantiated
-    start_http_server(8000)
 
 def setup_prometheus_endpoint_counter_centric():
     #
@@ -155,11 +160,10 @@ def setup_prometheus_endpoint_counter_centric():
     gCPU_READY = Gauge('CPU_Ready_ppm',"CPU Ready Time expressed as parts per million",labelnames=['aggregation','identifier'])
 
     # Need to start the "prometheus" http server after the Gauges are instantiated
-    start_http_server(8000)
 
 def push_entity_centric_to_prometheus(family,entities):
 
-    stats_list=load_defined_stats("api-stats-config.txt")
+    stats_list=load_defined_stats("entity-centric-stats.txt")
 
     if family == "vms":
         gGAUGE=gVM
@@ -167,6 +171,9 @@ def push_entity_centric_to_prometheus(family,entities):
         gGAUGE=gCTR
     if family == "hosts":
         gGAUGE=gHOST
+    if family == "clusters":
+        gGAUGE=gCLUSTER
+    
  
      #Get data from the dictionary passed in and set the gauges
     for entity in entities:
@@ -176,6 +183,8 @@ def push_entity_centric_to_prometheus(family,entities):
             if family == "vms":
                 entity_name=entity["vmName"]
             if family == "hosts":
+                entity_name=entity["name"]
+            if family == "clusters":
                 entity_name=entity["name"]
             # regardless of the family, the stats are always stored in a  
             # structure called stats.  Within the stats structure the data 
