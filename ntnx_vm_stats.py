@@ -49,23 +49,47 @@ def main():
 
 
     while(True):
+        for family in ["containers","vms","hosts","clusters"]:
+            entities=get_family_from_api(vip,family)
         if counter_centric:
             #Metric/Counter Centric, entites are labels
-                for family in ["containers","vms","hosts","clusters"]:
-                    entities=get_family_from_api(vip,family)
-                    push_counter_centric_to_prometheus(family,entities)
-
+                push_counter_centric_to_prometheus(family,entities)
         if entity_centric:
-            #Entity Centric.  Metrics/Counters are labels
-                for family in ["containers","vms","hosts","clusters"]:
-                    entities=get_family_from_api(vip,family)
-                    push_entity_centric_to_prometheus(family,entities)
+                push_entity_centric_to_prometheus(family,entities)
         time.sleep(1)
 
-#-----------
-# END Main
-#------------
-        
+def setup_prometheus_endpoint_entity_centric():
+    print("Setup Prometheus Endpoint")
+    #
+    # Setup gauges for VMs Hosts and Containers
+    #
+    global gVM,gHOST,gCTR,gCLUSTER
+    prometheus_client.instance_ip_grouping_key()
+    gVM = Gauge('vm_stats', 'Stats grouped by VM',labelnames=['vmname','statname'])
+    gHOST = Gauge('host_stats', 'Stats grouped by Pysical Host',labelnames=['hostname','statname'])
+    gCTR = Gauge('container_stats', 'Stats grouped by Storage Container',labelnames=['container','statname'])
+    gCLUSTER = Gauge('cluster_stats','Stats grouped by cluster',labelnames=['clustername','statname'])
+    # Need to start the "prometheus" http server after the Gauges are instantiated        
+def setup_prometheus_endpoint_counter_centric():
+    #
+    # Setup guages for IOPS, Throughput and CPU Utilization
+    #
+    global gIOPSRead,gIOPSWrite,gIOPSRW,gTPUTRead,gTPUTWrite,gTPUTRW,gREADResp,gWRITEResp,gRWResp,gCPU_UTIL,gCPU_READY
+    prometheus_client.instance_ip_grouping_key()
+    gIOPSRead = Gauge('Read_IOPS','Read IOPS IOs Per Second',labelnames=['aggregation','identifier'])
+    gIOPSWrite = Gauge('Write_IOPS','Write IOPS IOs Per Second',labelnames=['aggregation','identifier'])
+    gIOPSRW = Gauge('Read_Write_IOPS','Combined Read and Write IOPS IOs Per Second',labelnames=['aggregation','identifier'])
+    gTPUTRead = Gauge('Read_TPUT','Read Throughput in KB/s',labelnames=['aggregation','identifier'])
+    gTPUTWrite = Gauge('Write_TPUT','Write Throughput in KB/s',labelnames=['aggregation','identifier'])
+    gTPUTRW = Gauge('ReadWrite_TPUT','Combined Read and Write Throughput in KB/s',labelnames=['aggregation','identifier'])
+    gREADResp = Gauge('Read_Response_Time',"Read IO Response time (Latency)",labelnames=['aggregation','identifier'])
+    gWRITEResp = Gauge('Write_Response_Time',"Write IO Response time (Latency)",labelnames=['aggregation','identifier'])
+    gRWResp = Gauge('Read_Write_Response_Time',"Combined Read/Write IO Response time (Latency)",labelnames=['aggregation','identifier'])
+    gCPU_UTIL = Gauge('CPU_Utilization_ppm',"CPU Utilization expressed as parts per million",labelnames=['aggregation','identifier'])
+    gCPU_READY = Gauge('CPU_Ready_ppm',"CPU Ready Time expressed as parts per million",labelnames=['aggregation','identifier'])
+
+    # Need to start the "prometheus" http server after the Gauges are instantiated
+
 def push_counter_centric_to_prometheus(family,entities):
     print("incoming family is ",family)
     #For each thing in the family
@@ -118,49 +142,6 @@ def push_counter_centric_to_prometheus(family,entities):
                     #CPU Ready is only applicable to VMs running on a Hypervisor, not the host itself
                     gCPU_READY.labels(family,entity_name).set(entity["stats"]["hypervisor.cpu_ready_time_ppm"])
             gCPU_UTIL.labels(family,entity_name).set(entity["stats"]["hypervisor_cpu_usage_ppm"])
-
-def get_family_from_api(vip,family):
-    requests.packages.urllib3.disable_warnings()
-    v1_stat_VM_URL="https://"+vip+":9440/PrismGateway/services/rest/v1/"+family+"/"
-    response=requests.get(v1_stat_VM_URL, auth=HTTPBasicAuth(username,password),verify=False)
-    response.raise_for_status()
-    result=response.json()
-    entities=result["entities"]
-    return entities
-
-def setup_prometheus_endpoint_entity_centric():
-    print("Setup Prometheus Endpoint")
-    #
-    # Setup gauges for VMs Hosts and Containers
-    #
-    global gVM,gHOST,gCTR,gCLUSTER
-    prometheus_client.instance_ip_grouping_key()
-    gVM = Gauge('vm_stats', 'Stats grouped by VM',labelnames=['vmname','statname'])
-    gHOST = Gauge('host_stats', 'Stats grouped by Pysical Host',labelnames=['hostname','statname'])
-    gCTR = Gauge('container_stats', 'Stats grouped by Storage Container',labelnames=['container','statname'])
-    gCLUSTER = Gauge('cluster_stats','Stats grouped by cluster',labelnames=['clustername','statname'])
-    # Need to start the "prometheus" http server after the Gauges are instantiated
-
-def setup_prometheus_endpoint_counter_centric():
-    #
-    # Setup guages for IOPS, Throughput and CPU Utilization
-    #
-    global gIOPSRead,gIOPSWrite,gIOPSRW,gTPUTRead,gTPUTWrite,gTPUTRW,gREADResp,gWRITEResp,gRWResp,gCPU_UTIL,gCPU_READY
-    prometheus_client.instance_ip_grouping_key()
-    gIOPSRead = Gauge('Read_IOPS','Read IOPS IOs Per Second',labelnames=['aggregation','identifier'])
-    gIOPSWrite = Gauge('Write_IOPS','Write IOPS IOs Per Second',labelnames=['aggregation','identifier'])
-    gIOPSRW = Gauge('Read_Write_IOPS','Combined Read and Write IOPS IOs Per Second',labelnames=['aggregation','identifier'])
-    gTPUTRead = Gauge('Read_TPUT','Read Throughput in KB/s',labelnames=['aggregation','identifier'])
-    gTPUTWrite = Gauge('Write_TPUT','Write Throughput in KB/s',labelnames=['aggregation','identifier'])
-    gTPUTRW = Gauge('ReadWrite_TPUT','Combined Read and Write Throughput in KB/s',labelnames=['aggregation','identifier'])
-    gREADResp = Gauge('Read_Response_Time',"Read IO Response time (Latency)",labelnames=['aggregation','identifier'])
-    gWRITEResp = Gauge('Write_Response_Time',"Write IO Response time (Latency)",labelnames=['aggregation','identifier'])
-    gRWResp = Gauge('Read_Write_Response_Time',"Combined Read/Write IO Response time (Latency)",labelnames=['aggregation','identifier'])
-    gCPU_UTIL = Gauge('CPU_Utilization_ppm',"CPU Utilization expressed as parts per million",labelnames=['aggregation','identifier'])
-    gCPU_READY = Gauge('CPU_Ready_ppm',"CPU Ready Time expressed as parts per million",labelnames=['aggregation','identifier'])
-
-    # Need to start the "prometheus" http server after the Gauges are instantiated
-
 def push_entity_centric_to_prometheus(family,entities):
 
     stats_list=load_defined_stats("entity-centric-stats.txt")
@@ -174,7 +155,6 @@ def push_entity_centric_to_prometheus(family,entities):
     if family == "clusters":
         gGAUGE=gCLUSTER
     
- 
      #Get data from the dictionary passed in and set the gauges
     for entity in entities:
             #Each family may use a different identifier for the entity name.
@@ -220,7 +200,20 @@ def push_entity_centric_to_prometheus(family,entities):
                 if (int(write_rate_iops)+int(read_rate_iops)<spurious_iops_threshold):
                     gGAUGE.labels(entity_name,"controller_avg_read_io_latency_usecs").set("-1")
 
-
+def get_family_from_api(vip,family):
+    requests.packages.urllib3.disable_warnings()
+    v1_stat_VM_URL="https://"+vip+":9440/PrismGateway/services/rest/v1/"+family+"/"
+    response=requests.get(v1_stat_VM_URL, auth=HTTPBasicAuth(username,password),verify=False)
+    response.raise_for_status()
+    result=response.json()
+    entities=result["entities"]
+    return entities
+def load_defined_stats(filename):
+    defined_stats=[]
+    with open(filename) as f:
+        for line in f:
+            defined_stats.append(line.strip())
+    return defined_stats
 def check_prism_accessible(vip):
     #Check name resolution
     url="http://"+vip
@@ -238,7 +231,6 @@ def check_prism_accessible(vip):
         else:
             raise
     return url, status, message
-
 #Not currently used - for future use to setup the various
 #Metric centric gauges via configuration file (json)
 def load_defined_stats_json(filename):
@@ -261,12 +253,6 @@ def load_defined_stats_json(filename):
             continue
     return defined_stats
 
-def load_defined_stats(filename):
-    defined_stats=[]
-    with open(filename) as f:
-        for line in f:
-            defined_stats.append(line.strip())
-    return defined_stats
 
 if __name__ == '__main__':
     main()
