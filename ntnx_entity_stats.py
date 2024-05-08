@@ -10,21 +10,13 @@ import random
 import argparse
 import os
 
-global collect_container_stats,collect_host_stats,collect_vm_stats,use_method,curated,filter_spurious_response_times,spurious_iops_threshold
+global filter_spurious_response_times,spurious_iops_threshold
 
-collect_vm_stats=True
-collect_host_stats=True
-collect_container_stats=True
-#Attempt to fileter spurious respnse time values for very low IO rates
+#Attempt to filter spurious respnse time values for very low IO rates
 filter_spurious_response_times=True
 spurious_iops_threshold=50
             
-restrict_counter_set=False
-# Counter Centric groups the stats by counter (e.g. read iops, resposnse times) - entities are labels
 # Entity Centric groups the stats by entities (e.g. vms, containers, hosts) - counters are labels
-# Counter centric is always restricted
-counter_centric=False
-entity_centric=True
 def main():
     global username,password
     parser=argparse.ArgumentParser()
@@ -40,105 +32,34 @@ def main():
         exit(1)
     
     check_prism_accessible(vip)
-    setup_prometheus_endpoint_counter_centric()
+    #Instantiate the prometheus guages to store metrics
     setup_prometheus_endpoint_entity_centric()
-    #Start prometheus end-point
+    #Start prometheus end-point on port 8000 after the Gauges are instantiated        
     start_http_server(8000)
 
+    #Loop forever getting the metrics for all available entities (They may come and go)
+    #then expose the metrics for those entities on prometheus exporter ready for scraping
     while(True):
         for family in ["containers","vms","hosts","clusters"]:
-            entities=get_family_from_api(vip,family)
-            if counter_centric:
-                #Metric/Counter Centric, entites are label
-                push_counter_centric_to_prometheus(family,entities)
-            if entity_centric:
-                push_entity_centric_to_prometheus(family,entities)
-        time.sleep(1)
+            entities=get_entity_names(vip,family)
+            push_entity_centric_to_prometheus(family,entities)
+        #The counters are meant for trending and are quite coarse
+        #10s of  seconds is a reasonable scrape interval    
+        time.sleep(10)
 
 def setup_prometheus_endpoint_entity_centric():
-    print("Setup Prometheus Endpoint")
     #
     # Setup gauges for VMs Hosts and Containers
     #
     global gVM,gHOST,gCTR,gCLUSTER
     prometheus_client.instance_ip_grouping_key()
-    gVM = Gauge('vm_stats', 'Stats grouped by VM',labelnames=['vmname','statname'])
-    gHOST = Gauge('host_stats', 'Stats grouped by Pysical Host',labelnames=['hostname','statname'])
-    gCTR = Gauge('container_stats', 'Stats grouped by Storage Container',labelnames=['container','statname'])
-    gCLUSTER = Gauge('cluster_stats','Stats grouped by cluster',labelnames=['clustername','statname'])
-    # Need to start the "prometheus" http server after the Gauges are instantiated        
-def setup_prometheus_endpoint_counter_centric():
-    #
-    # Setup guages for IOPS, Throughput and CPU Utilization
-    #
-    global gIOPSRead,gIOPSWrite,gIOPSRW,gTPUTRead,gTPUTWrite,gTPUTRW,gREADResp,gWRITEResp,gRWResp,gCPU_UTIL,gCPU_READY
-    prometheus_client.instance_ip_grouping_key()
-    gIOPSRead = Gauge('Read_IOPS','Read IOPS IOs Per Second',labelnames=['aggregation','identifier'])
-    gIOPSWrite = Gauge('Write_IOPS','Write IOPS IOs Per Second',labelnames=['aggregation','identifier'])
-    gIOPSRW = Gauge('Read_Write_IOPS','Combined Read and Write IOPS IOs Per Second',labelnames=['aggregation','identifier'])
-    gTPUTRead = Gauge('Read_TPUT','Read Throughput in KB/s',labelnames=['aggregation','identifier'])
-    gTPUTWrite = Gauge('Write_TPUT','Write Throughput in KB/s',labelnames=['aggregation','identifier'])
-    gTPUTRW = Gauge('ReadWrite_TPUT','Combined Read and Write Throughput in KB/s',labelnames=['aggregation','identifier'])
-    gREADResp = Gauge('Read_Response_Time',"Read IO Response time (Latency)",labelnames=['aggregation','identifier'])
-    gWRITEResp = Gauge('Write_Response_Time',"Write IO Response time (Latency)",labelnames=['aggregation','identifier'])
-    gRWResp = Gauge('Read_Write_Response_Time',"Combined Read/Write IO Response time (Latency)",labelnames=['aggregation','identifier'])
-    gCPU_UTIL = Gauge('CPU_Utilization_ppm',"CPU Utilization expressed as parts per million",labelnames=['aggregation','identifier'])
-    gCPU_READY = Gauge('CPU_Ready_ppm',"CPU Ready Time expressed as parts per million",labelnames=['aggregation','identifier'])
-    # Need to start the "prometheus" http server after the Gauges are instantiated
+    gVM = Gauge('vms', 'Stats grouped by VM',labelnames=['vm_name','metric_name'])
+    gHOST = Gauge('hosts', 'Stats grouped by Pysical Host',labelnames=['host_name','metric_name'])
+    gCTR = Gauge('containers', 'Stats grouped by Storage Container',labelnames=['container_name','metric_name'])
+    gCLUSTER = Gauge('clusters','Stats grouped by cluster',labelnames=['cluster_name','metric_name'])
 
-def push_counter_centric_to_prometheus(family,entities):
-    print("incoming family is ",family)
-    #For each thing in the family
-    print("family is",family)
-    for entity in entities:
-        # for each thing of type family
-        if family == "containers":
-            entity_name=(entity["name"])
-        if family == "vms":
-            entity_name=(entity["vmName"])
-        if family == "hosts":
-            entity_name=(entity["name"])
-        if family == "clusters":
-            entity_name=(entity["name"])
-        
-        gIOPSRead.labels(family,entity_name).set(entity["stats"]["controller_num_read_iops"])
-        gIOPSWrite.labels(family,entity_name).set(entity["stats"]["controller_num_write_iops"])
-        gIOPSRW.labels(family,entity_name).set(entity["stats"]["controller_num_iops"])
-        gTPUTRead.labels(family,entity_name).set(entity["stats"]["controller_read_io_bandwidth_kBps"])
-        gTPUTWrite.labels(family,entity_name).set(entity["stats"]["controller_write_io_bandwidth_kBps"])
-        gTPUTRW.labels(family,entity_name).set(entity["stats"]["controller_io_bandwidth_kBps"])
-        gRWResp.labels(family,entity_name).set(entity["stats"]["controller_avg_io_latency_usecs"])
-        gREADResp.labels(family,entity_name).set(entity["stats"]["controller_avg_read_io_latency_usecs"])
-        gWRITEResp.labels(family,entity_name).set(entity["stats"]["controller_avg_write_io_latency_usecs"])
-
-        #Maybe overwrite response times with -1 if the rates fall below the spurious IO threshold
-        if filter_spurious_response_times:
-            read_rate_iops=entity["stats"]["controller_num_read_iops"]
-            write_rate_iops=entity["stats"]["controller_num_write_iops"]
-            rw_rate_iops=entity["stats"]["controller_num_iops"]
-            if (int(read_rate_iops)<spurious_iops_threshold):
-                print("Supressing spurious read resp for ",entity_name)
-                gREADResp.labels(family,entity_name).set(-1)
-          
-            if (int(write_rate_iops)<spurious_iops_threshold):
-                print("Supressing spurious write resp for ",entity_name)
-                gWRITEResp.labels(family,entity_name).set(-1)
-
-            if int(rw_rate_iops)<spurious_iops_threshold:
-                print("Supressing spurious R/W resp for ",entity_name)
-                gRWResp.labels(family,entity_name).set(-1)
-
-        #
-        # Only process CPU Utilization for Hosts and VMs
-        #
-        if family in ["vms","hosts","clusters"]:
-            if family == "vms":
-                    #CPU Ready is only applicable to VMs running on a Hypervisor, not the host itself
-                    gCPU_READY.labels(family,entity_name).set(entity["stats"]["hypervisor.cpu_ready_time_ppm"])
-            gCPU_UTIL.labels(family,entity_name).set(entity["stats"]["hypervisor_cpu_usage_ppm"])
 
 def push_entity_centric_to_prometheus(family,entities):
-    stats_list=load_defined_stats("entity-centric-stats.txt")
 
     if family == "vms":
         gGAUGE=gVM
@@ -164,22 +85,14 @@ def push_entity_centric_to_prometheus(family,entities):
             # structure called stats.  Within the stats structure the data 
             # is layed out as Key:Value.  We just walk through make a prometheus
             # guage for whatever we find
-            for stat_name in entity["stats"]:
-                if restrict_counter_set:
-                    #If we are using a restricted set, only create
-                    #gauges for the named stats placed in the config
-                    #array "stats_list" which is populated in "load_defined_stats"
-                    if stat_name in stats_list:
-                        stat_value=entity["stats"][stat_name]
-                        print(entity_name,stat_name,stat_value)
-                        gid=gGAUGE.labels(entity_name,stat_name)
-                        gid.set(stat_value)
-                else:
-                        stat_value=entity["stats"][stat_name]
-                        print(entity_name,stat_name,stat_value)
-                        gid=gGAUGE.labels(entity_name,stat_name)
-                        gid.set(stat_value)
-            #Overwrite if falling below spurious IO rate threshold
+            for metric_name in entity["stats"]:
+                stat_value=entity["stats"][metric_name]
+                if any(prefix in metric_name for prefix in ["controller","hypervisor","guest"]):
+                    print(entity_name,metric_name,stat_value)
+                    gid=gGAUGE.labels(entity_name,metric_name)
+                    gid.set(stat_value)
+            #Overwrite value with -1 if IO rate is below spurious IO rate threshold.  This is 
+            #to avoid misleading response times for entities that are doing very little IO
             if filter_spurious_response_times:
                 print("Supressing spurious values - entity centric - family",entity_name,family)
                 read_rate_iops=entity["stats"]["controller_num_read_iops"]
@@ -196,7 +109,7 @@ def push_entity_centric_to_prometheus(family,entities):
                     print("RW iops too low, supressing write response times")
                     gGAUGE.labels(entity_name,"controller_avg_io_latency_usecs").set("-1")
 
-def get_family_from_api(vip,family):
+def get_entity_names(vip,family):
     requests.packages.urllib3.disable_warnings()
     v1_stat_VM_URL="https://"+vip+":9440/PrismGateway/services/rest/v1/"+family+"/"
     response=requests.get(v1_stat_VM_URL, auth=HTTPBasicAuth(username,password),verify=False)
@@ -204,13 +117,7 @@ def get_family_from_api(vip,family):
     result=response.json()
     entities=result["entities"]
     return entities
-def load_defined_stats(filename):
-    print("in load_defined_Stats")
-    defined_stats=[]
-    with open(filename) as f:
-        for line in f:
-            defined_stats.append(line.strip())
-    return defined_stats
+
 def check_prism_accessible(vip):
     #Check name resolution
     url="http://"+vip
@@ -218,7 +125,7 @@ def check_prism_accessible(vip):
     status = None
     message = ''
     try:
-        resp = requests.head('http://' + vip)
+        resp = requests.head('http://' + vip)   
         status = str(resp.status_code)
     except:
         if ("[Errno 11001] getaddrinfo failed" in str(vip) or     # Windows
@@ -228,28 +135,6 @@ def check_prism_accessible(vip):
         else:
             raise
     return url, status, message
-#Not currently used - for future use to setup the various
-#Metric centric gauges via configuration file (json)
-def load_defined_stats_json(filename):
-    defined_stats=[]
-    f=open(filename)
-
-    res=json.load(f)
-    pprint.pprint(res)
-    print("keys")
-    key=list(res.keys())
-    pprint.pprint(list(key)[0])
-    print("keys done")
-    inner=res["container_stats"]
-
-    for tup in inner:
-        if "controller_num_iops" in tup.values():
-            defined_stats.append(tup["name"])
-            #print(tup["type"])
-            #print(tup["description"])
-            continue
-    return defined_stats
-
 
 if __name__ == '__main__':
     main()
