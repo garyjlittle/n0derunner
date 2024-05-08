@@ -56,7 +56,7 @@ def setup_prometheus_endpoint_entity_centric():
     gVM = Gauge('vms', 'Stats grouped by VM',labelnames=['vm_name','metric_name'])
     gHOST = Gauge('hosts', 'Stats grouped by Pysical Host',labelnames=['host_name','metric_name'])
     gCTR = Gauge('containers', 'Stats grouped by Storage Container',labelnames=['container_name','metric_name'])
-    gCLUSTER = Gauge('clusters','Stats grouped by cluster',labelnames=['cluster_name','metric_name'])
+    gCLUSTER = Gauge('cluster','Stats grouped by cluster',labelnames=['cluster_name','metric_name'])
 
 
 def push_entity_centric_to_prometheus(family,entities):
