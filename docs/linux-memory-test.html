@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>linux-memory-test</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="mvp.css" />
+</head>
+<body>
+<h1 id="fun-with-linux-memory">Fun with Linux memory</h1>
+<p>Examples of using malloc and writing to memory with three use-cases
+for a simple process</p>
+<ul>
+<li>No memory allocation at all <a
+href="#example-no-malloc">no_malloc.c</a></li>
+<li>A call to <code>malloc()</code> but memory is not written to <a
+href="#example-malloc-only">malloc only.c</a></li>
+<li>A call to <code>malloc()</code> and then memory is written to the
+allocated space <a href="#example-malloc-and-write">malloc and
+write.c</a></li>
+</ul>
+<p>In each case we run the example with a 64MB allocation so that we can
+see the usage from standard linux tools.</p>
+<p>We do something like this</p>
+<pre><code>gary@linux:~/git/unixfun$ ./malloc_and_write 65536
+Allocating 65536 KB
+Allocating 67108864 bytes
+The address of your memory is 0x7fa2829ff010
+Hit &lt;return&gt; to exit</code></pre>
+<ul>
+<li><a href="#top">top</a></li>
+<li><a href="#free">free</a></li>
+<li><a href="#pmap">pmap</a></li>
+<li><a href="#gdb">gdb</a></li>
+</ul>
+<h3 id="top">top</h3>
+<h4 id="top-malloc-only">top malloc only</h4>
+<p>When we run the <code>malloc</code> process which only allocated
+memory, we see the <code>VIRT</code> value hit around 68MB (size of the
+process plus the 64MB that we asked it to allocate) - but the
+<code>RES</code> value stays small (956KB)</p>
+<p><img src="../images/linux-memory/top-malloc-only.png"
+alt="top malloc only" /></p>
+<h4 id="top-malloc-and-usage">top malloc and usage</h4>
+<p>When we run the <code>malloc_and_write</code> which means we
+additionally write data ('N') to the memory which we allocated. With
+64MB as the allocation we will see ~67-68MB for both <code>VIRT</code>
+and <code>RES</code>.</p>
+<p><img
+src="https://github.com/garyjlittle/ontheline/blob/89acf59e80bc504ed69bd025404c82f1082757be/images/linux-memory/top-malloc-and-write.png"
+alt="top_malloc_and_write" /></p>
+<h4 id="top-no-memory-allocation">top (no memory allocation)</h4>
+<p>With a very simple process that does not allocation at all both
+<code>VIRT</code> and <code>RES</code> are tiny</p>
+<p><img
+src="https://github.com/garyjlittle/ontheline/blob/a96273d5d80dd3fb5fe76616ca61e789322d8742/images/linux-memory/top-no_malloc.png"
+alt="top-no-alloc" /></p>
+<h3 id="free">free</h3>
+<p>Using the <code>free</code> tool we can see memory usage is only
+counted when the process actually writes to memory</p>
+<ul>
+<li>start with initial state</li>
+<li>Run process which only allocates memory (does not write any
+data).</li>
+<li>Quit that program and check to see we are back to the initial
+state</li>
+<li>Run process which makes an allocation of 64MB and then writes to
+it</li>
+</ul>
+<p>Whne we allocate and use 64MB we see the <code>free</code> value
+decrement by ~70MB and the <code>used</code> value increases by ~70MB.
+When we just run the <code>malloc()</code> and no actual usage - the
+free/used change by about 2MB which is probably the size of the process
+and libraries.</p>
+<p><img
+src="https://github.com/garyjlittle/ontheline/blob/89acf59e80bc504ed69bd025404c82f1082757be/images/linux-memory/output-of-free_m.png"
+alt="Linux-free-tool" /></p>
+<h3 id="pmap">pmap</h3>
+<p>With <code>pmap -x</code> we can look into the process and see the
+various memory regions that make up the address space.</p>
+<h4 id="pmap-allocate-and-use">pmap allocate and use</h4>
+<p>We see the <code>Kbytes</code> and <code>RSS</code> with calues
+around 64MB - as well as how much is dirty <img
+src="https://github.com/garyjlittle/ontheline/blob/ea85028b895aff424c5c58b9ced18fa0322b3e1e/images/linux-memory/pmap-malloc-and-write.png"
+alt="pmap-allocate-and-use" /></p>
+<h4 id="pmap-allocate-only">pmap allocate only</h4>
+<p>If we only malloc - then we see the <code>anon</code> segment of
+~64MB but no RSS and no Dirty</p>
+<p><img
+src="https://github.com/garyjlittle/ontheline/blob/ea85028b895aff424c5c58b9ced18fa0322b3e1e/images/linux-memory/pmap-malloc-only.png"
+alt="pmap-allocate-only" /></p>
+<h4 id="pmap-no-allocation">pmap no allocation</h4>
+<p>With no alloc we do not see the second <code>anon</code> segment.</p>
+<p><img
+src="https://github.com/garyjlittle/ontheline/blob/ea85028b895aff424c5c58b9ced18fa0322b3e1e/images/linux-memory/pmap-no-malloc.png"
+alt="pmap-no-alloc" /></p>
+<h3 id="gdb">gdb</h3>
+<p>Using the output of <code>pmap</code> we can use <code>gdb</code> to
+dump the memory area that has been allocated. We can also use the
+address returned by <code>malloc</code> if we know it.</p>
+<h4 id="gdb-for-memory-allocated-and-written">gdb for memory allocated
+and written</h4>
+<p>Our example code writes the character <code>"N"</code> to every
+memory location that we write to. So we expect to see that in the
+process address space.</p>
+<ul>
+<li>open <code>gdb</code> and attach to the process we want to inspect
+e.g. as root <code>gdb --pid $(pidof malloc_and_write) </code></li>
+<li>use the command
+<code>dump memory &lt;filename&gt; &lt;start-memory-address&gt; &lt;end-memory-address&gt;</code>
+<ul>
+<li>e.g.
+<code>(gdb) dump memory /tmp/pmap2 0x7fa2829ff000 0x7fa2829ff0ff</code></li>
+</ul></li>
+<li>quit <code>gdb</code></li>
+<li>usd <code>od</code> to print out the contents of the dumpfile e.g.
+<code>od -x /tmp/gdbdump</code> or <code>od -c /tmp/gdbdmp</code></li>
+</ul>
+<p><img
+src="https://github.com/garyjlittle/ontheline/blob/a7f3054fc4abd12637b923784f2fb93996ddd062/images/linux-memory/gdb_and_od_malloc_and_write.png"
+alt="gdb and od for written memory" /></p>
+<h4 id="gdb-for-memory-allocated-only">gdb for memory allocated
+only</h4>
+<p>If we do not write to memory - what is returned for a read to that
+area? We can use <code>gdb</code> to find out.</p>
+<h5 id="attach-to-process-with-gdb">attach to process with gdb</h5>
+<p>Attach to the process and dump memory <img
+src="https://github.com/garyjlittle/ontheline/blob/a7f3054fc4abd12637b923784f2fb93996ddd062/images/linux-memory/gdb-dump-malloc-only.png"
+alt="gdb read from unwritten memory" /></p>
+<h5 id="dump-output-with-od">dump output with od</h5>
+<p>The output of <code>od</code> shows us that the memory contains NULLs
+which makes sense</p>
+<p><img
+src="https://github.com/garyjlittle/ontheline/blob/a7f3054fc4abd12637b923784f2fb93996ddd062/images/linux-memory/od-output-malloc-only.png"
+alt="od output unwritten" /></p>
+<h4 id="gdb-for-unallocated">gdb for unallocated</h4>
+<p>If memory is unallocted then we need to guess a region. We get an
+error back from the mmu as expected since it's not allocated - if we
+tried to read this memory in the process we would expect to get a segv
+or similar</p>
+<p><img
+src="https://github.com/garyjlittle/ontheline/blob/a7f3054fc4abd12637b923784f2fb93996ddd062/images/linux-memory/gdb-dump-invalid-memory.png"
+alt="gdb read unallocated" /></p>
+<h3 id="code">Code</h3>
+<h4 id="example-no-malloc">Example no malloc</h4>
+<pre><code>#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+int main(int argc, char *argv[]) {
+    int bytes;
+    int *ptr;
+    getchar();
+}</code></pre>
+<h4 id="example-malloc-only">Example malloc only</h4>
+<pre><code>#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+int main(int argc, char *argv[]) {
+    int bytes;
+    int *ptr;
+    if (argc == 2) {
+        printf(&quot;Allocating %s KB\n&quot;, argv[1]);
+        bytes=(atoi(argv[1])*1024);
+        printf(&quot;Allocating %d bytes\n&quot;,bytes);
+    } else {
+        printf(&quot;Please supply KB to allocate\n&quot;);
+        exit(1);
+    }
+    if (bytes&gt;0) {
+    ptr=malloc(bytes);
+    printf(&quot;The address of your memory is %p\n&quot;,ptr);
+    }else{
+        printf(&quot;No memory allocated\n&quot;);
+    }
+    getchar();
+}</code></pre>
+<h4 id="example-malloc-and-write">Example malloc and write</h4>
+<pre><code>#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+int main(int argc, char *argv[]) {
+    int bytes;
+    char *ptr,*ref;
+    if (argc == 2) {
+        printf(&quot;Allocating %s KB\n&quot;, argv[1]);
+        bytes=(atoi(argv[1])*1024);
+        printf(&quot;Allocating %d bytes\n&quot;,bytes);
+    } else {
+        printf(&quot;Please supply KB to allocate\n&quot;);
+        exit(1);
+    }
+    if (bytes&gt;0) {
+        ptr=malloc(bytes);
+        printf(&quot;The address of your memory is %p\n&quot;,ptr);
+        for (ref=ptr;ref &lt; (ptr+bytes);ref++) {
+            /*char is single quote, string is double quote*/
+            *ref=&#39;N&#39;;
+    }
+    }else{
+        printf(&quot;No memory allocated\n&quot;);
+    }
+    printf(&quot;Hit &lt;return&gt; to exit\n&quot;);
+    getchar();
+    printf(&quot;\n&quot;);
+}</code></pre>
+</body>
+</html>
