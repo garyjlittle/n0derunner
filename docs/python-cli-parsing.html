@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>python-cli-parsing</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="mvp.css" />
+</head>
+<body>
+<h1 id="parsing-command-lines-in-python">Parsing command lines in
+python</h1>
+<h5 id="tutorials">Tutorials</h5>
+<ul>
+<li><a
+href="https://docs.python.org/3/howto/argparse.html#argparse-tutorial">docs.python.org</a>
+-or- <a
+href="https://realpython.com/command-line-interfaces-python-argparse/">Real
+Python</a></li>
+</ul>
+<h5 id="repos">Repos</h5>
+<ul>
+<li>See also exmples in <a
+href="https://github.com/garyjlittle/python">my python repo</a></li>
+</ul>
+<h5 id="contents">Contents</h5>
+<ul>
+<li><a href="#using-argv">Using <code>sys.argv</code> to pass simple
+parameters to a script</a></li>
+<li><a href="#using-argparse">Using <code>argparse</code> for modern CLI
+parsing</a>
+<ul>
+<li><p><a href="#positional-arguments">positional arguments</a></p></li>
+<li><p><a href="#positional-arguments-shell-expansion">positional
+arguments with shell expansion</a></p></li>
+<li><p><a href="#named-arguments">named arguments</a></p></li>
+<li><p><a href="#implementing-a-switch-or-flag">implementing a switch or
+flag</a></p></li>
+<li><p><a href="#implementing-a-verbosity-style-flag">implementing a
+verbisity counting flag</a></p></li>
+<li><p><a href="#adding-general-help-text">Adding general help
+text</a></p></li>
+<li><p><a href="#help-text-for-specific-arguments">Adding help text per
+argument</a></p></li>
+</ul></li>
+</ul>
+<h4 id="background">Background</h4>
+<p>Python has had several iterations of CLI parsing modules. As of 2023
+the module to use is <a href="#using-argparse"><code>argparse</code></a>
+and is supported in Python &gt;3.2 <a
+href="https://peps.python.org/pep-0389/">PEP 389</a></p>
+<p>Previously python has used <code>getopt</code> and
+<code>optparse</code>. For very simple CLI it is possible to use
+<code>sys.argv</code> to pull parameters from the CLI.</p>
+<h2 id="using-argv">Using <code>argv</code></h2>
+<p>To pass simple parameters on the CLI use the list
+<code>sys.argv[1:]</code> for instance you could iterate across a shell
+expanded list of files this way.</p>
+<ul>
+<li><a
+href="https://github.com/garyjlittle/python/blob/2335b76f5dc364f6ead082c5b619db95feacb254/cli-argv.py">Script
+in my python repository</a></li>
+</ul>
+<pre><code>import sys
+
+def main():
+    #argv[0] is the python script
+    pyname=sys.argv[0]
+    #additional arguments are in argv[&gt;0]
+    allargs=sys.argv[1:]
+    print(&quot;Main called as &quot;,pyname)
+    for i in range(1,len(sys.argv)):
+        print(&quot;arg &quot;,i,&quot;is &quot;,sys.argv[i])
+    print(&quot;All the args &quot;,allargs)
+
+if __name__ == &quot;__main__&quot;:
+    main()</code></pre>
+<h2 id="using-argparse">Using argparse</h2>
+<p><code>argparse</code> is the modern (2023) module to use. It provides
+several helpers like <code>help</code>.</p>
+<h4 id="instantiating-argparse">Instantiating argparse</h4>
+<p>To use argparse we <code>import</code> the module and create an
+object using <code>argparse.ArgumentParser</code> - by convention we use
+the name <code>parser</code></p>
+<pre><code>import argparse
+
+parser=argparse.ArgumentParser()</code></pre>
+<p>we can then add to the parser the names of arguments we want to
+accept on the commandline</p>
+<pre><code>parser.add_argument(&quot;anything&quot;)</code></pre>
+<p>in the script we can reference the arguments passed in with
+<code>parser.parse_args()</code> which will validate the arguments and
+barf if there are too many or to few arguments passed to the script.</p>
+<pre><code>args=parser.parse_args()</code></pre>
+<p>For example in the above snippet we expect exactly one argument and
+barf if anything else.</p>
+<h3 id="positional-arguments">Positional arguments</h3>
+<p>See also the <a
+href="https://github.com/garyjlittle/python/blob/55a7d1ef369c4d4f946d2beda4cdbe2e1a5f8459/cli-argparse-positional.py">code
+in python repo</a></p>
+<p>When we use <code>parser.add_argument("name")</code> the argument is
+purely positional - in other words we don't need to use
+<code>name</code> on the command line. However, the argument
+<strong>must</strong> be supplied.</p>
+<h5 id="code">code</h5>
+<pre><code>import argparse
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument(&quot;anything&quot;)
+    args=parser.parse_args()
+    print(&quot;Argument is &quot;,args.anything)
+
+if (__name__ == &quot;__main__&quot;):
+    main()</code></pre>
+<h5 id="output">output</h5>
+<pre><code>python3 ./argparse1.py fff        &lt;------ works because we supply exactly one argument
+Argument is  fff
+
+python3 ./argparse1.py fff ggg 
+usage: argparse1.py [-h] anything
+argparse1.py: error: unrecognized arguments: ggg.  &lt;------ barfs because we supply two arguments (fff and ggg)
+
+garymbp:python gary$ python3 ./argparse1.py 
+usage: argparse1.py [-h] anything
+argparse1.py: error: the following arguments are required: anything.  &lt;----- barfs because we did not supply an argument</code></pre>
+<h3 id="positional-arguments-shell-expansion">Positional arguments shell
+expansion</h3>
+<p>When using shell expansion, we don't know how many arguments will be
+passed into the command - e.g. we want to act on some files in a
+directory. For this we use <code>parse_known_args()</code>. This returns
+a tuple (specified-args,arbitrary-args)</p>
+<h4 id="code-1">code</h4>
+<pre><code>import argparse
+import sys
+
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument(&quot;-a&quot;,&quot;--anything&quot;,action=&quot;store&quot;)
+    parser.add_argument(&quot;-s&quot;,&quot;--switch&quot;,action=&quot;store_true&quot;)
+    
+    args,extras=parser.parse_known_args()
+    
+    #Print out the specified args that we know about
+    print(&quot;anything is &quot;,args.anything)
+    print(&quot;switch is &quot;,args.switch)
+    #Print out the arbitrary args that come from the command line of shell expansion
+    i=0
+    for n in extras:
+        print(&quot;arg &quot;,i,&quot;is&quot;,n)
+        i+=1
+if (__name__ == &quot;__main__&quot;):
+    main()</code></pre>
+<h4 id="output-1">output</h4>
+<pre><code>./store-dash.py  --anything fresh cli*.py -s
+args are  Namespace(anything=&#39;fresh&#39;, switch=True)
+anything is  fresh
+switch is  True
+arg  0 is cli-argparse-1.2-switch.py
+arg  1 is cli-argparse-2-add_help.py
+arg  2 is cli-argparse-3-group_help_sections.py
+arg  3 is cli-argparse-positional.py
+arg  4 is cli-argv.py</code></pre>
+<h3 id="named-arguments">Named arguments</h3>
+<p>If we use <code>parser.add_argument("--name")</code> then we need to
+use <code>--name</code> to set the variable. In other words prepending
+the variable name with <code>--</code> effects the way the user
+specifies the variable.</p>
+<p>With a names argument - the argument is also
+<strong>optional</strong> unlike a positional argument which is
+mandatory.</p>
+<h5 id="code-2">code</h5>
+<pre><code>import argparse
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument(&quot;--anything&quot;)
+    args=parser.parse_args()
+    print(&quot;Argument is &quot;,args.anything)
+
+if (__name__ == &quot;__main__&quot;):
+    main()</code></pre>
+<h5 id="output-2">output</h5>
+<pre><code>./simple-dash.py 555
+usage: simple-dash.py [-h] [--anything ANYTHING]
+simple-dash.py: error: unrecognized arguments: 555
+
+./simple-dash.py --anything 555
+Argument is  555
+
+./simple-dash.py
+Argument is  None</code></pre>
+<h3 id="implementing-a-switch-or-flag">Implementing a switch or
+flag</h3>
+<h5 id="code-3">code</h5>
+<pre><code>import argparse
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument(&quot;--anything&quot;,action=&quot;store_true&quot;)
+    args=parser.parse_args()
+    print(&quot;Argument is &quot;,args.anything)
+
+if (__name__ == &quot;__main__&quot;):
+    main()</code></pre>
+<h5 id="output-3">output</h5>
+<pre><code>python3 simple-switch.py 
+Argument is  False
+
+python3 simple-switch.py --anything
+Argument is  True</code></pre>
+<h3 id="implementing-a-verbosity-style-flag">Implementing a verbosity
+style flag</h3>
+<p>There is a specific type of flag that allows a "counting flag" e.g.
+<code>-v</code> or <code>-vv</code> or <code>-vvv</code> typically used
+to increase debugging or verbosity levels. To implement this, just use
+<code>action="count"</code> and include a single letter flag e.g. in
+this example <code>-a</code></p>
+<h4 id="code-4">code</h4>
+<pre><code>import argparse
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument(&quot;-a&quot;,&quot;--anything&quot;,action=&quot;count&quot;)
+    args=parser.parse_args()
+    print(&quot;Argument is &quot;,args.anything)
+
+if (__name__ == &quot;__main__&quot;):
+    main()</code></pre>
+<h4 id="output-4">output</h4>
+<pre><code>./count-dash.py -a
+Argument is  1
+ ./count-dash.py -aa
+Argument is  2
+./count-dash.py -aaa
+Argument is  3</code></pre>
+<h2 id="help">Help</h2>
+<h3 id="adding-general-help-text">Adding general help text</h3>
+<p><code>argparse</code> adds the ability to generate
+<code>help -h</code> text very easily. We add the text when we
+instantiate the parser object e.g.</p>
+<pre><code>def main():
+    parser=argparse.ArgumentParser(
+        prog=&quot;argparser&quot;,
+        description=&quot;Looks at arguments&quot;,
+        epilog=&quot;This is the last line of help.  Good luck.&quot;
+    )</code></pre>
+<p>When we run the script with <code>-h</code> we get some help text</p>
+<pre><code>python3 ./cli-argparse-2-add_help.py -h
+usage: argparser [-h] anything. &lt;---- shows whatever we put in `prog` here regardless of the script name
+
+Looks at arguments. &lt;------ The text of the `description` field.
+
+positional arguments:
+  anything              &lt;------- comes from parser.add_argument(&quot;anything&quot;)
+
+optional arguments:
+  -h, --help  show this help message and exit
+
+This is the last line of help. Good luck.      &lt;--- epilog text</code></pre>
+<h4 id="help-text-for-specific-arguments">Help text for specific
+arguments</h4>
+<p>You can add help text for each option/argument too.</p>
+<pre><code>import argparse
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument(&quot;--anything&quot;,action=&quot;store_true&quot;,help=&quot;Store anything using this switch&quot;)
+    args=parser.parse_args()
+    print(&quot;Argument is &quot;,args.anything)
+
+if (__name__ == &quot;__main__&quot;):
+    main()</code></pre>
+</body>
+</html>
