@@ -1,7 +1,7 @@
 # Managing a Nutanix Cluster with Python and the V4 API
 When the world was simpler, ssh and bash scripts were fine to manage infrastructure. Today we need a better set of tools to manage operations involving thousands of VMs.   A combination of Python and the Nutanix V4 API gives us a simple but powerful toolset to do sysadmin robustly at scale while maintining the simple elegance of bash/ssh/sed/awk and all our old friends.
 
-![Link](https://github.com/garyjlittle/ontheline/blob/ee2bfe79a7243db5de48b3f75476dd0323322466/images/Developers-nutanix-com-annnotated.png)
+![Link](https://github.com/garyjlittle/n0derunner/blob/b59811fb79d2a07be52118a6fe2e3faa1d5d55d0/screenshots/Developers-nutanix-com-annnotated.png)
 ##### Official V4 API Documentation
 * [V4.0 **virtual machine APIs**](https://developers.nutanix.com/api-reference?namespace=vmm&version=v4.0)
 * [V4.0 **cluster API**](https://developers.nutanix.com/api-reference?namespace=clustermgmt&version=v4.0)
@@ -167,9 +167,9 @@ for vm in vms:
 
 ###### Postman
 ---
-![Postman API](https://github.com/garyjlittle/ontheline/blob/71e271a3dce4c5fad61392163de27c7c9d389485/images/postman-v4-api.png)
+![Postman API](https://github.com/garyjlittle/n0derunner/blob/b59811fb79d2a07be52118a6fe2e3faa1d5d55d0/screenshots/postman-v4-api.png)
 ---
 ###### vscode
 ---
-![VSCode Explorer](https://github.com/garyjlittle/ontheline/blob/985d716fe05947f75ec658100d7f7be5f33709ea/images/v4-api-vscode-explore.png)
+![VSCode Explorer](https://github.com/garyjlittle/n0derunner/blob/b59811fb79d2a07be52118a6fe2e3faa1d5d55d0/screenshots/v4-api-vscode-explore.png)
 ---
