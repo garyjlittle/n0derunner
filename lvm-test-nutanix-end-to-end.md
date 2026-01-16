@@ -279,3 +279,18 @@ sdd            349.00    349.00     0.00   0.00    0.70  1024.00    0.00      0.
 sde            349.00    349.00     0.00   0.00    0.70  1024.00    0.00      0.00     0.00   0.00    0.00     0.00    0.00      0.00     0.00   0.00    0.00     0.00    0.00    0.00    0.25 100.00
 sdf
 ```
+## LVM with VG
+```
+<acropolis> vg.disk_create lvmtestVG container=default-container-76528194032531 create_size=101G
+DiskCreate: complete
+<acropolis> vg.disk_create lvmtestVG container=default-container-76528194032531 create_size=101G
+DiskCreate: complete
+<acropolis> vg.disk_create lvmtestVG container=default-container-76528194032531 create_size=101G
+DiskCreate: complete
+<acropolis> vg.disk_create lvmtestVG container=default-container-76528194032531 create_size=101G
+DiskCreate: complete
+<acropolis> vg.update lvmtestVG load_balance_vm_attachments=false
+lvmtestVG: complete
+<acropolis> vg.attach_to_vm lvmtestVG TESTVGLB
+AttachToVm: complete
+```
