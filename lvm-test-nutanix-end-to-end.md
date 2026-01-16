@@ -291,6 +291,15 @@ DiskCreate: complete
 DiskCreate: complete
 <acropolis> vg.update lvmtestVG load_balance_vm_attachments=false
 lvmtestVG: complete
-<acropolis> vg.attach_to_vm lvmtestVG TESTVGLB
+<acropolis> vg.attach_to_vm lvmtestVG lvmtest
 AttachToVm: complete
+```
+Check
+```
+lsblk
+
+sdg                          8:96   0  101G  0 disk
+sdh                          8:112  0  101G  0 disk
+sdi                          8:128  0  101G  0 disk
+sdj                          8:144  0  101G  0 disk
 ```
